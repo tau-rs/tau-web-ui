@@ -11,6 +11,8 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
 use crate::adapters::TraceDelta;
+use crate::config;
+use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
 use crate::serve_client::{RunItem, ServeClient};
 use crate::store::{RunStore, TraceReplay};
 use crate::trace::*;
@@ -25,6 +27,7 @@ pub struct Inner {
     pub no_sandbox: bool,
     pub store: RunStore,
     workflow_runner: Box<dyn WorkflowRunner>,
+    package_ops: Box<dyn PackageOps>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -50,12 +53,18 @@ impl AppState {
                 project.clone(),
             ))
         };
+        let package_ops: Box<dyn PackageOps> = if is_mock {
+            Box::new(MockOps::new())
+        } else {
+            Box::new(CliOps::new(bin.clone(), project.clone()))
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
             no_sandbox,
             store,
             workflow_runner,
+            package_ops,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -374,6 +383,52 @@ impl AppState {
         });
 
         Ok(run_id)
+    }
+
+    pub fn config_read(&self) -> Result<config::ProjectConfig> {
+        config::read(&self.0.project)
+    }
+
+    pub fn config_write(&self, name: &str, description: Option<&str>) -> Result<()> {
+        config::write_project(&self.0.project, name, description)
+    }
+
+    pub fn packages(&self) -> Vec<Package> {
+        self.0.package_ops.list()
+    }
+
+    pub fn package_install(&self, git_url: &str) -> Result<Package> {
+        self.0.package_ops.install(git_url)
+    }
+
+    pub fn package_uninstall(&self, name: &str) -> Result<()> {
+        self.0.package_ops.uninstall(name)
+    }
+
+    pub fn package_update(&self, name: &str, to: Option<String>) -> Result<Package> {
+        self.0.package_ops.update(name, to)
+    }
+
+    pub fn package_resolve(&self) -> Result<Vec<Package>> {
+        self.0.package_ops.resolve()
+    }
+
+    pub fn package_verify(&self) -> Vec<VerifyResult> {
+        self.0.package_ops.verify()
+    }
+
+    /// Import a community agent: install its package, then register `[agents.<id>]`.
+    pub fn import_agent(&self, git_url: &str, llm_backend: &str) -> Result<String> {
+        let id = name_from_url(git_url);
+        let pkg = self.0.package_ops.install(git_url)?;
+        config::add_agent(
+            &self.0.project,
+            &id,
+            &id,
+            &format!("{}@^{}", pkg.name, pkg.version),
+            llm_backend,
+        )?;
+        Ok(id)
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<bool> {
