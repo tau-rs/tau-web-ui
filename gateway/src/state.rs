@@ -8,11 +8,13 @@ use std::sync::Arc;
 use anyhow::Result;
 use tokio::sync::{broadcast, Mutex, RwLock};
 
+use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
 use crate::adapters::TraceDelta;
 use crate::serve_client::{RunItem, ServeClient};
 use crate::store::{RunStore, TraceReplay};
 use crate::trace::*;
+use crate::workflow::{MockRunner, WorkflowItem, WorkflowRunner};
 
 #[derive(Clone)]
 pub struct AppState(pub Arc<Inner>);
@@ -22,6 +24,7 @@ pub struct Inner {
     pub project: PathBuf,
     pub no_sandbox: bool,
     pub store: RunStore,
+    workflow_runner: Box<dyn WorkflowRunner>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -34,11 +37,25 @@ pub struct Inner {
 
 impl AppState {
     pub fn new(bin: PathBuf, project: PathBuf, no_sandbox: bool, store: RunStore) -> Self {
+        let is_mock = bin
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| n.contains("fake-tau-serve"))
+            .unwrap_or(false);
+        let workflow_runner: Box<dyn WorkflowRunner> = if is_mock {
+            Box::new(MockRunner)
+        } else {
+            Box::new(crate::workflow::CliRunner::new(
+                bin.clone(),
+                project.clone(),
+            ))
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
             no_sandbox,
             store,
+            workflow_runner,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -255,6 +272,108 @@ impl AppState {
         self.0.serve_ids.write().await.remove(run_id);
         self.publish(run_id, WsMessage::RunUpdate { run: run.clone() })
             .await;
+    }
+
+    /// Workflow definitions in <project>/workflows/*.toml (file stems).
+    pub fn list_workflows(&self) -> Vec<String> {
+        let dir = self.0.project.join("workflows");
+        let mut names: Vec<String> = std::fs::read_dir(&dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("toml"))
+            .filter_map(|e| {
+                e.path()
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().to_string())
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// Launch a workflow run: create the Run (source=log), drive the runner's
+    /// StepRecords through the log-adapter into store + broadcast, then finalize.
+    pub async fn launch_workflow(&self, workflow: String, input: String) -> Result<String> {
+        let run_id = ulid::Ulid::new().to_string();
+        let run = Run {
+            id: run_id.clone(),
+            agent_id: workflow.clone(),
+            prompt: input.clone(),
+            substrate: Substrate::Host,
+            mode: Mode::Dev,
+            status: RunStatus::Running,
+            started_at: now(),
+            ended_at: None,
+            total_turns: None,
+            token_usage: None,
+            stop_reason: None,
+            error: None,
+            source: Source::Log,
+        };
+        self.0
+            .runs
+            .write()
+            .await
+            .insert(run_id.clone(), run.clone());
+        self.0
+            .channels
+            .write()
+            .await
+            .entry(run_id.clone())
+            .or_insert_with(|| broadcast::channel(1024).0);
+        self.0.store.write_header(&run).await?;
+
+        let mut rx = self.0.workflow_runner.run(workflow, input, run_id.clone());
+        let state = self.clone();
+        let run_id_spawn = run_id.clone();
+        tokio::spawn(async move {
+            let run_id = run_id_spawn;
+            let adapter = LogAdapter::new(run_id.clone());
+            let mut run = run;
+            let mut steps = 0u32;
+            let mut any_failed = false;
+            while let Some(item) = rx.recv().await {
+                match item {
+                    WorkflowItem::Step(rec) => {
+                        steps += 1;
+                        if rec.status == "failed" {
+                            any_failed = true;
+                            run.error = Some(RunError {
+                                kind: rec.error.clone().unwrap_or_else(|| "step_failed".into()),
+                                detail: rec.detail.clone().unwrap_or_default(),
+                            });
+                        }
+                        for delta in adapter.on_step(&rec) {
+                            state.apply_delta(&run_id, delta).await;
+                        }
+                    }
+                    WorkflowItem::Done => {
+                        run.total_turns = Some(steps);
+                        run.status = if any_failed {
+                            RunStatus::Failed
+                        } else {
+                            RunStatus::Completed
+                        };
+                        run.ended_at = Some(now());
+                        state.finalize(&run_id, &mut run).await;
+                        break;
+                    }
+                    WorkflowItem::Error(e) => {
+                        run.status = RunStatus::Failed;
+                        run.error = Some(RunError {
+                            kind: "workflow_error".into(),
+                            detail: e,
+                        });
+                        run.ended_at = Some(now());
+                        state.finalize(&run_id, &mut run).await;
+                        break;
+                    }
+                }
+            }
+        });
+
+        Ok(run_id)
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<bool> {
