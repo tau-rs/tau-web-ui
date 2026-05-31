@@ -2,13 +2,12 @@
 
 Tracked here so Plan 2 (frontend) and future work don't mistake these for bugs.
 
-1. **Assistant prose is live-only; not replayed.** `Event`s (incl. `text_delta`) are
-   persisted to JSONL but `WsMessage::Snapshot` / `GET /api/runs/:id` return only the
-   `Run` + `Vec<Span>`, not events. So reopening a *finished* run shows the full span
-   tree and per-span I/O (tool args/results live in `span.attributes`), but NOT the
-   streamed assistant text. Live runs show everything. To make replay byte-identical,
-   add an `events: Vec<Event>` field to `Snapshot` + `load_trace` and reconstruct
-   `assistantText` from it on the frontend. Deferred — the data is already on disk.
+1. ~~**Assistant prose is live-only; not replayed.**~~ **RESOLVED (2026-05-31).**
+   `WsMessage::Snapshot`, `load_trace`, and `GET /api/runs/:id` now carry
+   `events: Vec<Event>`, and the frontend store reconstructs `assistantText` from the
+   `text_delta` events on both REST replay and WS snapshot. Reopening or deep-linking a
+   run (`/runs/:id`) shows the full assistant prose, and the fix also closes the
+   WS-connect race that could drop early text on a freshly launched run.
 
 2. **`channels` map grows unbounded.** `AppState` never removes a run's
    `broadcast::Sender` after the run finalizes (`gateway/src/state.rs`). Negligible at
