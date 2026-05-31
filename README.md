@@ -1,5 +1,7 @@
 # tau-web-ui
 
+[![CI](https://github.com/LEBOCQTitouan/tau-web-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/LEBOCQTitouan/tau-web-ui/actions/workflows/ci.yml)
+
 Local dev-and-monitoring UI for [tau](https://github.com/LEBOCQTitouan/tau). Two crates + a web app:
 
 - `gateway/` — Rust/axum service fronting `tau serve` behind a stable HTTP+WS API.
