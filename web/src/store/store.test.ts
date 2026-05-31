@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { useStore } from "./store";
 import type { WsMessage } from "../types/WsMessage";
 import type { Span } from "../types/Span";
@@ -68,5 +68,25 @@ describe("store.applyWs", () => {
     } as WsMessage);
     s.applyWs({ type: "run_update", run: { id: "R1", status: "completed" } as any } as WsMessage);
     expect(useStore.getState().currentTrace!.run.status).toBe("completed");
+  });
+});
+
+describe("store.loadHealth", () => {
+  it("stores health from the API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          gateway_ok: true,
+          engine_ok: true,
+          tau_bin: "x",
+          tau_version: "0.0.0-mock",
+        }),
+      }),
+    );
+    await useStore.getState().loadHealth();
+    expect(useStore.getState().health?.tau_version).toBe("0.0.0-mock");
+    vi.restoreAllMocks();
   });
 });
