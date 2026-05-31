@@ -26,6 +26,8 @@ anyhow.workspace = true
 thiserror.workspace = true
 chrono.workspace = true
 futures.workspace = true
+toml = "0.8"
+toml_edit = "0.22"
 
 [dev-dependencies]
 tempfile = "3"
