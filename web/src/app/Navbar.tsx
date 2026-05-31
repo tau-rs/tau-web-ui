@@ -5,6 +5,12 @@ function titleFor(pathname: string, agent?: string): string {
   if (pathname.startsWith("/dashboard")) return "Dashboard";
   if (pathname.startsWith("/runs/")) return `Trace · ${agent ?? "…"}`;
   if (pathname.startsWith("/runs")) return "Runs";
+  if (pathname.startsWith("/agents")) return "Agents";
+  if (pathname.startsWith("/workflows")) return "Workflows";
+  if (pathname.startsWith("/tools")) return "Tools & Skills";
+  if (pathname.startsWith("/packages")) return "Packages";
+  if (pathname.startsWith("/config")) return "Config & Capabilities";
+  if (pathname.startsWith("/ship")) return "Ship / Targets";
   if (pathname.startsWith("/health")) return "Health";
   return "tau-web-ui";
 }
