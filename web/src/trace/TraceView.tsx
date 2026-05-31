@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store/store";
 import { TraceGraph } from "./TraceGraph";
@@ -15,6 +15,11 @@ export function TraceView() {
   const selectedId = useStore((s) => s.selectedSpanId);
   const navigate = useNavigate();
   const [tab, setTab] = useState<TraceTab>("graph");
+  const isWorkflow = trace?.run.source === "log";
+
+  useEffect(() => {
+    setTab(isWorkflow ? "timeline" : "graph");
+  }, [isWorkflow]);
 
   if (!trace) {
     return <section className="p-4 text-sm text-muted">Select a run to view its trace.</section>;
@@ -49,7 +54,7 @@ export function TraceView() {
           )}
         </div>
         <div className="min-w-[280px] flex-1 overflow-auto">
-          <SpanInspector span={selected} />
+          <SpanInspector span={selected} workflow={isWorkflow} />
         </div>
       </div>
       <AssistantStream />

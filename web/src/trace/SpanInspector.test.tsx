@@ -27,4 +27,37 @@ describe("SpanInspector", () => {
     render(<SpanInspector span={null} />);
     expect(screen.getByText(/select a node/i)).toBeInTheDocument();
   });
+
+  it("shows the gated agent-drill for a workflow agent step", () => {
+    const span = {
+      id: "s",
+      parent_id: null,
+      run_id: "R",
+      kind: "agent",
+      name: "gather",
+      status: "ok",
+      started_at: "t",
+      ended_at: "t2",
+      attributes: { input: "hi", output: "done" },
+    } as unknown as import("../types/Span").Span;
+    render(<SpanInspector span={span} workflow />);
+    expect(screen.getByText(/view agent trace/i)).toBeInTheDocument();
+    expect(screen.getByText(/gated/i)).toBeInTheDocument();
+  });
+
+  it("no drill for a normal agent-run trace", () => {
+    const span = {
+      id: "s",
+      parent_id: null,
+      run_id: "R",
+      kind: "agent",
+      name: "x",
+      status: "ok",
+      started_at: "t",
+      ended_at: "t2",
+      attributes: {},
+    } as unknown as import("../types/Span").Span;
+    render(<SpanInspector span={span} />);
+    expect(screen.queryByText(/view agent trace/i)).toBeNull();
+  });
 });
