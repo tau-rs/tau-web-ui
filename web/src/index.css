@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 248 250 252;
+  --surface: 255 255 255;
+  --border: 226 232 240;
+  --fg: 30 41 59;
+  --muted: 100 116 139;
+  --accent: 124 58 237;
+  --accent-fg: 255 255 255;
+  --status-running: 37 99 235;
+  --status-running-soft: 219 234 254;
+  --status-ok: 22 163 74;
+  --status-ok-soft: 220 252 231;
+  --status-error: 220 38 38;
+  --status-error-soft: 254 226 226;
+  --status-cancelled: 161 98 7;
+  --status-cancelled-soft: 254 243 199;
+}
+
+/* Dark-ready seam: fill these + add `class="dark"` on <html> to enable dark mode.
+   No toggle UI in this scope.
+.dark {
+  --bg: 15 17 21;
+  --surface: 22 27 34;
+  --border: 33 38 45;
+  --fg: 230 237 243;
+  --muted: 125 133 144;
+  --accent: 167 139 250;
+  --accent-fg: 15 17 21;
+}
+*/
+
+@layer base {
+  body {
+    @apply bg-bg text-fg antialiased;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      sans-serif;
+  }
+}
