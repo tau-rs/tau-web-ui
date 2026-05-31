@@ -1,0 +1,21 @@
+[workflow]
+description = "Gather, summarise, and save a nightly research note."
+default-agent = "researcher"
+
+[[steps]]
+id = "gather"
+kind = "agent.run"
+agent = "researcher"
+input = "${input}"
+
+[[steps]]
+id = "summarise"
+kind = "agent.run"
+agent = "greeter"
+input = "${steps.gather.output}"
+
+[[steps]]
+id = "save-results"
+kind = "tool.call"
+tool = "fs-write"
+args = { path = "/tmp/nightly.md", content = "${steps.summarise.output}" }

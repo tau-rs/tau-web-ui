@@ -5,3 +5,4 @@ pub mod serve_client;
 pub mod state;
 pub mod store;
 pub mod trace;
+pub mod workflow;

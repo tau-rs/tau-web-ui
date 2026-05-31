@@ -1,0 +1,15 @@
+[workflow]
+description = "Collect data then render a report (render step fails in the mock)."
+default-agent = "researcher"
+
+[[steps]]
+id = "collect"
+kind = "agent.run"
+agent = "researcher"
+input = "${input}"
+
+[[steps]]
+id = "render"
+kind = "tool.call"
+tool = "fs-write"
+args = { path = "/tmp/report.html" }
