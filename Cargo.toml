@@ -15,7 +15,7 @@ axum = { version = "0.7", features = ["ws"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 ulid = "1"
-ts-rs = "10"
+ts-rs = { version = "10", features = ["serde-json-impl"] }
 tokio-util = { version = "0.7", features = ["rt"] }
 anyhow = "1"
 thiserror = "1"

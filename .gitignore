@@ -3,3 +3,7 @@
 /web/dist
 /.tau-web-ui
 *.log
+# ts-rs auto-export artefacts (default bindings dir used by #[ts(export)] tests)
+**/bindings/
+gateway/serde_json/
+gateway/web/
