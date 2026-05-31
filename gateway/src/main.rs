@@ -36,6 +36,11 @@ fn flag(args: &[String], name: &str) -> Option<String> {
 }
 
 fn dirs_data_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
-    PathBuf::from(home).join(".tau-web-ui/runs")
+    match std::env::var("HOME") {
+        Ok(home) => PathBuf::from(home).join(".tau-web-ui/runs"),
+        Err(_) => {
+            tracing::warn!("$HOME unset; storing run data under ./.tau-web-ui/runs (relative to cwd)");
+            PathBuf::from(".tau-web-ui/runs")
+        }
+    }
 }

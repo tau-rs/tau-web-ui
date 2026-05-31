@@ -13,8 +13,9 @@ pub struct ServeAdapter {
     now: fn() -> String,
     turn_index: u32,
     turn_span_id: Option<String>,
-    /// serve call_id -> our span id, for matching ToolCallCompleted.
-    tool_spans: std::collections::HashMap<String, String>,
+    turn_started_at: Option<String>,
+    /// serve call_id -> (our span id, started_at), for matching ToolCallCompleted.
+    tool_spans: std::collections::HashMap<String, (String, String)>,
     seq: u64,
 }
 
@@ -27,7 +28,7 @@ impl ServeAdapter {
         Self::with_clock(run_id, rfc3339_now)
     }
     pub fn with_clock(run_id: String, now: fn() -> String) -> Self {
-        ServeAdapter { run_id, now, turn_index: 0, turn_span_id: None,
+        ServeAdapter { run_id, now, turn_index: 0, turn_span_id: None, turn_started_at: None,
             tool_spans: Default::default(), seq: 0 }
     }
 
@@ -43,10 +44,12 @@ impl ServeAdapter {
         }
         self.turn_index += 1;
         let id = self.span_id("turn");
+        let started = (self.now)();
+        self.turn_started_at = Some(started.clone());
         let span = Span {
             id: id.clone(), parent_id: None, run_id: self.run_id.clone(),
             kind: SpanKind::Turn, name: format!("turn {}", self.turn_index),
-            status: SpanStatus::Running, started_at: (self.now)(), ended_at: None,
+            status: SpanStatus::Running, started_at: started, ended_at: None,
             attributes: json!({}),
         };
         out.push(TraceDelta::SpanOpened(span));
@@ -80,11 +83,12 @@ impl ServeAdapter {
                 let name = data["tool"].as_str().unwrap_or("tool").to_string();
                 let call_id = data["call_id"].as_str().unwrap_or("").to_string();
                 let sid = self.span_id("tool");
-                self.tool_spans.insert(call_id, sid.clone());
+                let started = (self.now)();
+                self.tool_spans.insert(call_id, (sid.clone(), started.clone()));
                 out.push(TraceDelta::SpanOpened(Span {
                     id: sid, parent_id: Some(self.turn_span_id.clone().unwrap()),
                     run_id: self.run_id.clone(), kind: Self::kind_for_tool(&name),
-                    name, status: SpanStatus::Running, started_at: (self.now)(),
+                    name, status: SpanStatus::Running, started_at: started,
                     ended_at: None, attributes: json!({"args": data["args"].clone()}),
                 }));
                 out.push(TraceDelta::Event(Event {
@@ -97,14 +101,14 @@ impl ServeAdapter {
                 let result = &data["result"];
                 let is_err = result["ok"].as_bool() == Some(false)
                     || result["is_error"].as_bool() == Some(true);
-                if let Some(sid) = self.tool_spans.remove(&call_id) {
+                if let Some((sid, started)) = self.tool_spans.remove(&call_id) {
                     out.push(TraceDelta::SpanUpdated(Span {
                         id: sid, parent_id: Some(self.turn_span_id.clone().unwrap()),
                         run_id: self.run_id.clone(),
                         kind: Self::kind_for_tool(data["tool"].as_str().unwrap_or("")),
                         name: data["tool"].as_str().unwrap_or("tool").into(),
                         status: if is_err { SpanStatus::Error } else { SpanStatus::Ok },
-                        started_at: (self.now)(), ended_at: Some((self.now)()),
+                        started_at: started, ended_at: Some((self.now)()),
                         attributes: json!({"result": result.clone()}),
                     }));
                 }
@@ -115,10 +119,11 @@ impl ServeAdapter {
             }
             "TurnCompleted" => {
                 if let Some(id) = self.turn_span_id.take() {
+                    let started = self.turn_started_at.take().unwrap_or_else(|| (self.now)());
                     out.push(TraceDelta::SpanUpdated(Span {
                         id, parent_id: None, run_id: self.run_id.clone(),
                         kind: SpanKind::Turn, name: format!("turn {}", self.turn_index),
-                        status: SpanStatus::Ok, started_at: (self.now)(),
+                        status: SpanStatus::Ok, started_at: started,
                         ended_at: Some((self.now)()), attributes: data.clone(),
                     }));
                 }
@@ -218,5 +223,20 @@ mod tests {
         assert_eq!(ServeAdapter::parse_usage(&json!({"input_tokens":3,"output_tokens":4})).unwrap().input_tokens, 3);
         assert_eq!(ServeAdapter::parse_usage(&json!({"prompt":5,"completion":6})).unwrap().output_tokens, 6);
         assert!(ServeAdapter::parse_usage(&json!(null)).is_none());
+    }
+
+    #[test]
+    fn tool_span_preserves_open_timestamp_on_close() {
+        let mut a = ServeAdapter::with_clock("R1".into(), fixed_now);
+        let opened = a.on_event("ToolCallStarted", &json!({"tool":"x","call_id":"c1","args":{}}));
+        let open = opened.iter().find_map(|d| match d {
+            TraceDelta::SpanOpened(s) if s.kind == SpanKind::ToolCall => Some(s.clone()), _ => None }).unwrap();
+        let closed = a.on_event("ToolCallCompleted",
+            &json!({"tool":"x","call_id":"c1","result":{"ok":true}}));
+        let close = closed.iter().find_map(|d| match d {
+            TraceDelta::SpanUpdated(s) => Some(s.clone()), _ => None }).unwrap();
+        // started_at carried over from the open span; ended_at now populated.
+        assert_eq!(close.started_at, open.started_at);
+        assert!(close.ended_at.is_some());
     }
 }

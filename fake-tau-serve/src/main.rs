@@ -19,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let stdout = tokio::io::stdout();
 
     if ready_on_stderr {
-        eprint!("tau-serve ready\n");
+        eprintln!("tau-serve ready");
         std::io::stderr().flush().ok();
     }
 
@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     // Wait for all in-flight streaming runs to complete before exiting.
-    while let Some(_) = tasks.join_next().await {}
+    while (tasks.join_next().await).is_some() {}
     Ok(())
 }
 
