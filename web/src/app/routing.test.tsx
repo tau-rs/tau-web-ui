@@ -35,9 +35,9 @@ describe("routing", () => {
     expect(screen.getByText(/waits on tau/i)).toBeInTheDocument();
   });
 
-  it("renders the Packages stub", () => {
+  it("renders the Packages page", () => {
     at("/packages");
-    expect(screen.getByText(/install & manage packages/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /packages/i })).toBeInTheDocument();
   });
 
   it("renders the Ship stub", () => {
