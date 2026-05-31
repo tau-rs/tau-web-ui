@@ -62,7 +62,7 @@ pub struct Run {
 /// kinds at runtime without panicking (forward-compat). The generated TS union is
 /// intentionally closed to the known kinds (`#[ts(skip)]` on `Other`); the frontend
 /// branches on span `name`, not on an exhaustive `kind` switch, so this is safe.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
 pub enum SpanKind { Run, Turn, ToolCall, Agent, McpCall, ContextStep, #[ts(skip)] #[serde(other)] Other }
