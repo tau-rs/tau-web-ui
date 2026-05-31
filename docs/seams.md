@@ -9,7 +9,7 @@ never a redesign. Every adapter produces the same `TraceDelta`/Trace model.
 | ② Project/Config | future `GET/PUT /api/project/config` + `adapters` cli-json | tau δ.1 resolver |
 | ③ Targets & Build | future `POST /api/build`, `GET /api/targets`, `GET /api/runs/:id/conformance` | tau B/C.2/γ, β.6 |
 | ⑥ Checks/Health | future `POST /api/check` → SARIF render | available now (tau check --json/--sarif) |
-| log-adapter (workflows) | `gateway/src/adapters/log.rs` | tau workflow JSONL (exists) — wire when workflow surface lands |
+| log-adapter (workflows) | `gateway/src/adapters/log.rs` — IMPLEMENTED (StepRecord→spans); step→agent drill gated | tau step→agent-run linkage (future) — real-tau workflow launch via `CliRunner` seam |
 | otlp-adapter (prod) | `gateway/src/adapters/otlp.rs` | tau artifacts emitting OTLP |
 | wasm/c-abi/mcu substrates | new `adapters/{wasm,cabi,mcu}.rs` | tau γ.2/3/4/5 |
 | Context-window utilization | `web/src/dashboard/ContextBar.tsx` (renders WIP now; pass `context={{pct}}` to activate) | tau emitting context-window size + per-turn peak tokens → add nullable `context` to gateway `Run`, populate in serve-adapter, regen TS types |
