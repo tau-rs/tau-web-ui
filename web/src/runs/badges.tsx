@@ -30,3 +30,16 @@ export function SubstrateModeBadge({
     </span>
   );
 }
+
+export function TypeBadge({ source }: { source: Run["source"] }) {
+  const isWf = source === "log";
+  return (
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-bold ${
+        isWf ? "bg-accent/15 text-accent" : "bg-st-running-soft text-st-running"
+      }`}
+    >
+      {isWf ? "WF" : "AG"}
+    </span>
+  );
+}

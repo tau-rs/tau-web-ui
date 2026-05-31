@@ -1,5 +1,5 @@
 import type { Run } from "../types/Run";
-import { StatusBadge, SubstrateModeBadge } from "./badges";
+import { StatusBadge, SubstrateModeBadge, TypeBadge } from "./badges";
 import { formatTokens, formatDuration, relativeTime, formatTokenSplit } from "./run-utils";
 import { ContextBar } from "../dashboard/ContextBar";
 
@@ -19,6 +19,7 @@ export function RunsTable({ runs, onOpen }: { runs: Run[]; onOpen: (id: string) 
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs text-muted">
+            <th className="px-3 py-2 font-medium">Type</th>
             <th className="px-3 py-2 font-medium">Agent</th>
             <th className="px-3 py-2 font-medium">Status</th>
             <th className="px-3 py-2 font-medium">Substrate/Mode</th>
@@ -38,6 +39,9 @@ export function RunsTable({ runs, onOpen }: { runs: Run[]; onOpen: (id: string) 
                 onClick={() => onOpen(r.id)}
                 className="cursor-pointer border-b border-border last:border-0 hover:bg-bg"
               >
+                <td className="px-3 py-2">
+                  <TypeBadge source={r.source} />
+                </td>
                 <td className="px-3 py-2 font-medium">{r.agent_id}</td>
                 <td className="px-3 py-2">
                   <StatusBadge status={r.status} />
