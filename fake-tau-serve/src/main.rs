@@ -16,12 +16,18 @@ async fn main() -> anyhow::Result<()> {
 
     let stdin = tokio::io::stdin();
     let mut lines = BufReader::new(stdin).lines();
-    let mut stdout = tokio::io::stdout();
+    let stdout = tokio::io::stdout();
 
     if ready_on_stderr {
         eprint!("tau-serve ready\n");
         std::io::stderr().flush().ok();
     }
+
+    use std::collections::HashSet;
+    use std::sync::{Arc, Mutex};
+    let cancelled: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    let out = Arc::new(tokio::sync::Mutex::new(stdout));
+    let mut tasks: tokio::task::JoinSet<()> = tokio::task::JoinSet::new();
 
     while let Some(line) = lines.next_line().await? {
         if line.trim().is_empty() {
@@ -30,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
         let req: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => {
-                write_line(&mut stdout, &err_response(&Value::Null, -32700, "Parse error")).await?;
+                write_line(&mut *out.lock().await, &err_response(&Value::Null, -32700, "Parse error")).await?;
                 continue;
             }
         };
@@ -43,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
                 if pv != 1 {
                     let mut e = err_response(&id, -32000, "Handshake mismatch");
                     e["error"]["data"] = json!({"supported_versions": [1]});
-                    write_line(&mut stdout, &e).await?;
+                    write_line(&mut *out.lock().await, &e).await?;
                     continue;
                 }
                 let resp = json!({
@@ -54,23 +60,58 @@ async fn main() -> anyhow::Result<()> {
                         "agents": ["greeter", "researcher"]
                     }
                 });
-                write_line(&mut stdout, &resp).await?;
+                write_line(&mut *out.lock().await, &resp).await?;
             }
             "meta.ping" => {
-                write_line(&mut stdout, &json!({"jsonrpc":"2.0","id":id,"result":{"ok":true}})).await?;
+                write_line(&mut *out.lock().await, &json!({"jsonrpc":"2.0","id":id,"result":{"ok":true}})).await?;
             }
             "runtime.run_streaming" => {
-                // Task 4 fills this in.
-                write_line(&mut stdout, &err_response(&id, -32601, "Method not found")).await?;
+                let agent = req["params"]["agent"].as_str().unwrap_or("greeter").to_string();
+                let prompt = req["params"]["prompt"].as_str().unwrap_or("").to_string();
+                let id_str = id.to_string();
+                let out = out.clone();
+                let cancelled = cancelled.clone();
+                tasks.spawn(async move {
+                    let steps = scripts::script_for(&agent, &prompt);
+                    let mut final_usage = json!(null);
+                    let mut stop_reason = json!("end_turn");
+                    for s in steps {
+                        tokio::time::sleep(std::time::Duration::from_millis(s.delay_ms)).await;
+                        if cancelled.lock().unwrap().contains(&id_str) {
+                            let mut o = out.lock().await;
+                            let _ = write_line(&mut o, &err_response(&id, -32001, "Cancelled by client")).await;
+                            return;
+                        }
+                        if s.kind == "RunCompleted" {
+                            final_usage = s.data["token_usage"].clone();
+                        }
+                        if s.kind == "TurnCompleted" {
+                            stop_reason = s.data["stop_reason"].clone();
+                        }
+                        let note = json!({"jsonrpc":"2.0","method":"runtime.event",
+                            "params":{"id":id,"kind":s.kind,"data":s.data}});
+                        let mut o = out.lock().await;
+                        if write_line(&mut o, &note).await.is_err() { return; }
+                    }
+                    let fin = json!({"jsonrpc":"2.0","id":id,
+                        "result":{"final":true,"token_usage":final_usage,"stop_reason":stop_reason}});
+                    let mut o = out.lock().await;
+                    let _ = write_line(&mut o, &fin).await;
+                });
             }
             "runtime.cancel" => {
-                write_line(&mut stdout, &json!({"jsonrpc":"2.0","id":id,"result":{"cancelled":false}})).await?;
+                let target = req["params"]["id"].to_string();
+                cancelled.lock().unwrap().insert(target);
+                write_line(&mut *out.lock().await,
+                    &json!({"jsonrpc":"2.0","id":id,"result":{"cancelled":true}})).await?;
             }
             _ => {
-                write_line(&mut stdout, &err_response(&id, -32601, "Method not found")).await?;
+                write_line(&mut *out.lock().await, &err_response(&id, -32601, "Method not found")).await?;
             }
         }
     }
+    // Wait for all in-flight streaming runs to complete before exiting.
+    while let Some(_) = tasks.join_next().await {}
     Ok(())
 }
 
