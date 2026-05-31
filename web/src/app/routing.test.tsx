@@ -16,13 +16,13 @@ describe("routing", () => {
     expect(screen.getByLabelText("prompt")).toBeInTheDocument();
   });
 
-  it("renders the Dashboard stub at /dashboard", () => {
+  it("renders the Dashboard page at /dashboard", () => {
     render(
       <MemoryRouter initialEntries={["/dashboard"]}>
         <App />
       </MemoryRouter>,
     );
-    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/wip/i).length).toBeGreaterThan(0);
   });
 
   it("redirects unknown paths to /runs", () => {
