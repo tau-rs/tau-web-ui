@@ -20,6 +20,7 @@
     "@xyflow/react": "^12",
     "react": "^18",
     "react-dom": "^18",
+    "react-router-dom": "^6.30.4",
     "zustand": "^4"
   },
   "devDependencies": {
