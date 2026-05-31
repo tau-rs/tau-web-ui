@@ -1,0 +1,7 @@
+# Marker project for fake-tau-serve. Real tau would resolve agents from here.
+[project]
+name = "demo"
+[agents.greeter]
+display_name = "Greeter"
+[agents.researcher]
+display_name = "Researcher (spawns sub-agents)"
