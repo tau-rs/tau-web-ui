@@ -14,8 +14,8 @@ pub struct ServeAdapter {
     turn_index: u32,
     turn_span_id: Option<String>,
     turn_started_at: Option<String>,
-    /// serve call_id -> (our span id, started_at), for matching ToolCallCompleted.
-    tool_spans: std::collections::HashMap<String, (String, String)>,
+    /// serve call_id -> (our span id, started_at, args), for matching ToolCallCompleted.
+    tool_spans: std::collections::HashMap<String, (String, String, Value)>,
     seq: u64,
 }
 
@@ -98,8 +98,9 @@ impl ServeAdapter {
                 let call_id = data["call_id"].as_str().unwrap_or("").to_string();
                 let sid = self.span_id("tool");
                 let started = (self.now)();
+                let args = data["args"].clone();
                 self.tool_spans
-                    .insert(call_id, (sid.clone(), started.clone()));
+                    .insert(call_id, (sid.clone(), started.clone(), args.clone()));
                 out.push(TraceDelta::SpanOpened(Span {
                     id: sid,
                     parent_id: Some(self.turn_span_id.clone().unwrap()),
@@ -109,7 +110,7 @@ impl ServeAdapter {
                     status: SpanStatus::Running,
                     started_at: started,
                     ended_at: None,
-                    attributes: json!({"args": data["args"].clone()}),
+                    attributes: json!({"args": args}),
                 }));
                 out.push(TraceDelta::Event(Event {
                     run_id: self.run_id.clone(),
@@ -124,7 +125,8 @@ impl ServeAdapter {
                 let result = &data["result"];
                 let is_err = result["ok"].as_bool() == Some(false)
                     || result["is_error"].as_bool() == Some(true);
-                if let Some((sid, started)) = self.tool_spans.remove(&call_id) {
+                if let Some((sid, started, args)) = self.tool_spans.remove(&call_id) {
+                    // Preserve args from the open event so the inspector can show both.
                     out.push(TraceDelta::SpanUpdated(Span {
                         id: sid,
                         parent_id: Some(self.turn_span_id.clone().unwrap()),
@@ -138,7 +140,7 @@ impl ServeAdapter {
                         },
                         started_at: started,
                         ended_at: Some((self.now)()),
-                        attributes: json!({"result": result.clone()}),
+                        attributes: json!({"args": args, "result": result.clone()}),
                     }));
                 }
                 out.push(TraceDelta::Event(Event {
@@ -349,5 +351,28 @@ mod tests {
         // started_at carried over from the open span; ended_at now populated.
         assert_eq!(close.started_at, open.started_at);
         assert!(close.ended_at.is_some());
+    }
+
+    #[test]
+    fn tool_close_preserves_args_alongside_result() {
+        let mut a = ServeAdapter::with_clock("R1".into(), fixed_now);
+        a.on_event(
+            "ToolCallStarted",
+            &json!({"tool":"fs-read","call_id":"c1","args":{"path":"/etc/hostname"}}),
+        );
+        let closed = a.on_event(
+            "ToolCallCompleted",
+            &json!({"tool":"fs-read","call_id":"c1","result":{"ok":true,"content":[]}}),
+        );
+        let upd = closed
+            .iter()
+            .find_map(|d| match d {
+                TraceDelta::SpanUpdated(s) => Some(s.clone()),
+                _ => None,
+            })
+            .expect("span updated");
+        // Both args and result must be present so the span inspector can show them.
+        assert_eq!(upd.attributes["args"]["path"], "/etc/hostname");
+        assert!(!upd.attributes["result"].is_null());
     }
 }
