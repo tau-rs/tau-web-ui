@@ -29,7 +29,11 @@ export function DashboardPage() {
   return (
     <div className="space-y-3 p-4">
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-        <StatCard label="Runs" value={m.total} sub={`${m.byStatus.running} running`} />
+        <StatCard
+          label="Runs"
+          value={m.total}
+          sub={`${m.byKind.workflow} wf · ${m.byKind.agent} agent`}
+        />
         <StatCard
           label="Success rate"
           tone="text-st-ok"

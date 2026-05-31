@@ -78,4 +78,9 @@ describe("computeMetrics", () => {
     expect(m.successRate).toBeNull();
     expect(m.durations).toBeNull();
   });
+
+  it("counts by kind (workflow vs agent)", () => {
+    const m = computeMetrics(runs, T(2));
+    expect(m.byKind).toEqual({ workflow: 0, agent: 3 });
+  });
 });

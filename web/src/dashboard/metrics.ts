@@ -10,6 +10,7 @@ export interface AgentMetric {
 export interface Metrics {
   total: number;
   byStatus: { running: number; completed: number; failed: number; cancelled: number };
+  byKind: { workflow: number; agent: number };
   successRate: number | null;
   tokens: { input: number; output: number; total: number };
   durations: { p50: number; p90: number; p99: number } | null;
@@ -38,10 +39,13 @@ function isTerminal(s: Run["status"]): boolean {
 
 export function computeMetrics(runs: Run[], now?: string, buckets = 12): Metrics {
   const byStatus = { running: 0, completed: 0, failed: 0, cancelled: 0 };
+  const byKind = { workflow: 0, agent: 0 };
   const tokens = { input: 0, output: 0, total: 0 };
   const durs: number[] = [];
   for (const r of runs) {
     byStatus[r.status] += 1;
+    if (r.source === "log") byKind.workflow += 1;
+    else byKind.agent += 1;
     if (r.token_usage) {
       tokens.input += r.token_usage.input_tokens;
       tokens.output += r.token_usage.output_tokens;
@@ -113,6 +117,7 @@ export function computeMetrics(runs: Run[], now?: string, buckets = 12): Metrics
   return {
     total: runs.length,
     byStatus,
+    byKind,
     successRate,
     tokens,
     durations,
