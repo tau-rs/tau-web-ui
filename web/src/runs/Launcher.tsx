@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useStore } from "../store/store";
 
 export function Launcher() {
   const project = useStore((s) => s.project);
   const launch = useStore((s) => s.launch);
+  const navigate = useNavigate();
   const [agent, setAgent] = useState("");
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -15,8 +17,9 @@ export function Launcher() {
     if (!selected || !prompt.trim()) return;
     setBusy(true);
     try {
-      await launch(selected, prompt);
+      const id = await launch(selected, prompt);
       setPrompt("");
+      navigate(`/runs/${id}`);
     } finally {
       setBusy(false);
     }

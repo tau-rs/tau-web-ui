@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useStore } from "../store/store";
 import { TraceGraph } from "./TraceGraph";
 import { TraceTimeline } from "./TraceTimeline";
@@ -12,7 +13,7 @@ type TraceTab = "graph" | "timeline";
 export function TraceView() {
   const trace = useStore((s) => s.currentTrace);
   const selectedId = useStore((s) => s.selectedSpanId);
-  const close = useStore((s) => s.closeTrace);
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TraceTab>("graph");
 
   if (!trace) {
@@ -34,7 +35,7 @@ export function TraceView() {
             onChange={setTab}
           />
         </div>
-        <button onClick={close} className="text-xs text-accent">
+        <button onClick={() => navigate("/runs")} className="text-xs text-accent">
           ← Back to runs
         </button>
       </div>
