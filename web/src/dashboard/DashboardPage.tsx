@@ -28,7 +28,7 @@ export function DashboardPage() {
   const m = useMemo(() => computeMetrics(runs), [runs]);
   return (
     <div className="space-y-3 p-4">
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Runs" value={m.total} sub={`${m.byStatus.running} running`} />
         <StatCard
           label="Success rate"
@@ -55,15 +55,6 @@ export function DashboardPage() {
               ? `p90 ${fmtMs(m.durations.p90)} · p99 ${fmtMs(m.durations.p99)}`
               : undefined
           }
-        />
-        <StatCard
-          label="Context"
-          value={
-            <span className="rounded bg-amber-100 px-1.5 text-[10px] font-bold uppercase text-amber-800">
-              WIP
-            </span>
-          }
-          sub="awaiting tau data"
         />
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
