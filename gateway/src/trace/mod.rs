@@ -29,10 +29,11 @@ pub enum Source { Serve, Log, Otlp, Wasm }
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct TokenUsage {
-    pub input_tokens: u64,
-    pub output_tokens: u64,
+    pub input_tokens: u32,
+    pub output_tokens: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_tokens: Option<u64>,
+    #[ts(optional)]
+    pub total_tokens: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -57,6 +58,10 @@ pub struct Run {
     pub source: Source,
 }
 
+/// Span kind. `Other` (`#[serde(other)]`) lets the gateway DESERIALIZE unknown
+/// kinds at runtime without panicking (forward-compat). The generated TS union is
+/// intentionally closed to the known kinds (`#[ts(skip)]` on `Other`); the frontend
+/// branches on span `name`, not on an exhaustive `kind` switch, so this is safe.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
@@ -153,6 +158,31 @@ mod tests {
         let v = serde_json::to_value(&span).unwrap();
         assert_eq!(v["kind"], "tool_call");
         assert_eq!(v["status"], "running");
+    }
+
+    #[test]
+    fn cabi_substrate_uses_hyphenated_wire_name() {
+        // manual #[serde(rename="c-abi")] must beat rename_all="lowercase" (which gives "cabi")
+        assert_eq!(serde_json::to_value(&Substrate::CAbi).unwrap(), "c-abi");
+    }
+
+    #[test]
+    fn unknown_span_kind_deserializes_to_other() {
+        // forward-compat: a future kind string must not fail deserialization
+        let k: SpanKind = serde_json::from_value(serde_json::json!("some_future_kind")).unwrap();
+        assert!(matches!(k, SpanKind::Other));
+    }
+
+    #[test]
+    fn ws_message_uses_type_tag_with_snake_case_variants() {
+        let span = Span {
+            id: "s1".into(), parent_id: None, run_id: "R1".into(),
+            kind: SpanKind::ToolCall, name: "x".into(), status: SpanStatus::Running,
+            started_at: "t".into(), ended_at: None, attributes: serde_json::json!({}),
+        };
+        let v = serde_json::to_value(&WsMessage::SpanUpdate { span }).unwrap();
+        assert_eq!(v["type"], "span_update");
+        assert!(v["span"].is_object());
     }
 
     #[test]
