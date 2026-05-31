@@ -35,7 +35,10 @@ pub struct Inner {
 impl AppState {
     pub fn new(bin: PathBuf, project: PathBuf, no_sandbox: bool, store: RunStore) -> Self {
         AppState(Arc::new(Inner {
-            bin, project, no_sandbox, store,
+            bin,
+            project,
+            no_sandbox,
+            store,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -50,8 +53,10 @@ impl AppState {
         for mut run in self.0.store.index()? {
             if run.status == RunStatus::Running {
                 run.status = RunStatus::Failed;
-                run.error = Some(RunError { kind: "gateway_restart".into(),
-                    detail: "run was in-flight when the gateway stopped".into() });
+                run.error = Some(RunError {
+                    kind: "gateway_restart".into(),
+                    detail: "run was in-flight when the gateway stopped".into(),
+                });
                 run.ended_at = Some(now());
                 let _ = self.0.store.update_run(&run).await;
             }
@@ -64,9 +69,16 @@ impl AppState {
     pub async fn client(&self) -> Result<ServeClient> {
         let mut guard = self.0.client.lock().await;
         if let Some(c) = guard.as_ref() {
-            if c.is_alive().await { return Ok(c.clone()); }
+            if c.is_alive().await {
+                return Ok(c.clone());
+            }
         }
-        let c = ServeClient::spawn(self.0.bin.clone(), self.0.project.clone(), self.0.no_sandbox).await?;
+        let c = ServeClient::spawn(
+            self.0.bin.clone(),
+            self.0.project.clone(),
+            self.0.no_sandbox,
+        )
+        .await?;
         *guard = Some(c.clone());
         Ok(c)
     }
@@ -92,7 +104,8 @@ impl AppState {
     /// Subscribe to a run's live channel (creating it if absent).
     pub async fn subscribe(&self, run_id: &str) -> broadcast::Receiver<WsMessage> {
         let mut chans = self.0.channels.write().await;
-        chans.entry(run_id.to_string())
+        chans
+            .entry(run_id.to_string())
             .or_insert_with(|| broadcast::channel(1024).0)
             .subscribe()
     }
@@ -108,19 +121,40 @@ impl AppState {
     pub async fn launch(&self, agent_id: String, prompt: String) -> Result<String> {
         let run_id = ulid::Ulid::new().to_string();
         let run = Run {
-            id: run_id.clone(), agent_id: agent_id.clone(), prompt: prompt.clone(),
-            substrate: Substrate::Host, mode: Mode::Dev, status: RunStatus::Running,
-            started_at: now(), ended_at: None, total_turns: None, token_usage: None,
-            stop_reason: None, error: None, source: Source::Serve,
+            id: run_id.clone(),
+            agent_id: agent_id.clone(),
+            prompt: prompt.clone(),
+            substrate: Substrate::Host,
+            mode: Mode::Dev,
+            status: RunStatus::Running,
+            started_at: now(),
+            ended_at: None,
+            total_turns: None,
+            token_usage: None,
+            stop_reason: None,
+            error: None,
+            source: Source::Serve,
         };
-        self.0.runs.write().await.insert(run_id.clone(), run.clone());
-        self.0.channels.write().await.entry(run_id.clone())
+        self.0
+            .runs
+            .write()
+            .await
+            .insert(run_id.clone(), run.clone());
+        self.0
+            .channels
+            .write()
+            .await
+            .entry(run_id.clone())
             .or_insert_with(|| broadcast::channel(1024).0);
         self.0.store.write_header(&run).await?;
 
         let client = self.client().await?;
         let (serve_id, mut rx) = client.run_streaming(&agent_id, &prompt).await?;
-        self.0.serve_ids.write().await.insert(run_id.clone(), serve_id);
+        self.0
+            .serve_ids
+            .write()
+            .await
+            .insert(run_id.clone(), serve_id);
 
         let state = self.clone();
         let run_id_spawn = run_id.clone();
@@ -145,7 +179,10 @@ impl AppState {
                         }
                         if kind == "FatalError" {
                             run.error = Some(RunError {
-                                kind: data["tool_error_variant"].as_str().unwrap_or("FatalError").into(),
+                                kind: data["tool_error_variant"]
+                                    .as_str()
+                                    .unwrap_or("FatalError")
+                                    .into(),
                                 detail: data["message"].as_str().unwrap_or("").into(),
                             });
                         }
@@ -153,18 +190,32 @@ impl AppState {
                             state.apply_delta(&run_id, delta).await;
                         }
                     }
-                    RunItem::Final { token_usage, stop_reason } => {
-                        if let Some(u) = ServeAdapter::parse_usage(&token_usage) { run.token_usage = Some(u); }
-                        if let Some(s) = stop_reason.as_str() { run.stop_reason = Some(s.into()); }
+                    RunItem::Final {
+                        token_usage,
+                        stop_reason,
+                    } => {
+                        if let Some(u) = ServeAdapter::parse_usage(&token_usage) {
+                            run.token_usage = Some(u);
+                        }
+                        if let Some(s) = stop_reason.as_str() {
+                            run.stop_reason = Some(s.into());
+                        }
                         run.status = RunStatus::Completed;
                         run.ended_at = Some(now());
                         state.finalize(&run_id, &mut run).await;
                         break;
                     }
                     RunItem::Error(e) => {
-                        run.status = if e.code == -32001 { RunStatus::Cancelled } else { RunStatus::Failed };
+                        run.status = if e.code == -32001 {
+                            RunStatus::Cancelled
+                        } else {
+                            RunStatus::Failed
+                        };
                         if e.code != -32001 {
-                            run.error = Some(RunError { kind: format!("rpc:{}", e.code), detail: e.message });
+                            run.error = Some(RunError {
+                                kind: format!("rpc:{}", e.code),
+                                detail: e.message,
+                            });
                         }
                         run.ended_at = Some(now());
                         state.finalize(&run_id, &mut run).await;
@@ -181,7 +232,8 @@ impl AppState {
         match delta {
             TraceDelta::SpanOpened(s) | TraceDelta::SpanUpdated(s) => {
                 let _ = self.0.store.write_span(&s).await;
-                self.publish(run_id, WsMessage::SpanUpdate { span: s }).await;
+                self.publish(run_id, WsMessage::SpanUpdate { span: s })
+                    .await;
             }
             TraceDelta::Event(e) => {
                 let _ = self.0.store.write_event(&e).await;
@@ -194,10 +246,15 @@ impl AppState {
     }
 
     async fn finalize(&self, run_id: &str, run: &mut Run) {
-        self.0.runs.write().await.insert(run_id.to_string(), run.clone());
+        self.0
+            .runs
+            .write()
+            .await
+            .insert(run_id.to_string(), run.clone());
         let _ = self.0.store.update_run(run).await;
         self.0.serve_ids.write().await.remove(run_id);
-        self.publish(run_id, WsMessage::RunUpdate { run: run.clone() }).await;
+        self.publish(run_id, WsMessage::RunUpdate { run: run.clone() })
+            .await;
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<bool> {

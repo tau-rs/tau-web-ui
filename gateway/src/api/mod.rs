@@ -3,8 +3,11 @@ pub mod meta;
 pub mod runs;
 pub mod ws;
 
-use axum::{routing::{get, post}, Router};
 use crate::state::AppState;
+use axum::{
+    routing::{get, post},
+    Router,
+};
 
 pub fn router(state: AppState) -> Router {
     Router::new()

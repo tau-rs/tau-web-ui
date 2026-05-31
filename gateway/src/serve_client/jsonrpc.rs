@@ -5,7 +5,10 @@ use serde_json::Value;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(untagged)]
-pub enum RequestId { Int(i64), Str(String) }
+pub enum RequestId {
+    Int(i64),
+    Str(String),
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Request {
@@ -18,7 +21,12 @@ pub struct Request {
 
 impl Request {
     pub fn new(id: i64, method: &'static str, params: Value) -> Self {
-        Request { jsonrpc: "2.0", id: RequestId::Int(id), method, params: Some(params) }
+        Request {
+            jsonrpc: "2.0",
+            id: RequestId::Int(id),
+            method,
+            params: Some(params),
+        }
     }
 }
 
@@ -59,8 +67,12 @@ mod tests {
     #[test]
     fn parses_result_and_error() {
         let ok = r#"{"jsonrpc":"2.0","id":4,"result":{"final":true,"stop_reason":"end_turn"}}"#;
-        assert!(matches!(serde_json::from_str::<Inbound>(ok).unwrap(), Inbound::Result { .. }));
-        let err = r#"{"jsonrpc":"2.0","id":4,"error":{"code":-32001,"message":"Cancelled by client"}}"#;
+        assert!(matches!(
+            serde_json::from_str::<Inbound>(ok).unwrap(),
+            Inbound::Result { .. }
+        ));
+        let err =
+            r#"{"jsonrpc":"2.0","id":4,"error":{"code":-32001,"message":"Cancelled by client"}}"#;
         match serde_json::from_str::<Inbound>(err).unwrap() {
             Inbound::Error { error, .. } => assert_eq!(error.code, -32001),
             other => panic!("expected error, got {other:?}"),

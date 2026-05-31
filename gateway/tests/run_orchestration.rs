@@ -4,12 +4,16 @@ use tau_gateway::store::RunStore;
 use tau_gateway::trace::RunStatus;
 
 fn bin() -> PathBuf {
-    let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR")); p.pop();
-    p.push("target/debug/fake-tau-serve"); p
+    let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    p.pop();
+    p.push("target/debug/fake-tau-serve");
+    p
 }
 fn project() -> PathBuf {
-    let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR")); p.pop();
-    p.push("fixtures/demo"); p
+    let mut p = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    p.pop();
+    p.push("fixtures/demo");
+    p
 }
 
 #[tokio::test]
@@ -41,11 +45,19 @@ async fn rehydrate_marks_stale_running_as_failed() {
     let dir = tempfile::tempdir().unwrap();
     let store = RunStore::new(dir.path()).unwrap();
     let run = tau_gateway::trace::Run {
-        id: "STALE".into(), agent_id: "greeter".into(), prompt: "x".into(),
-        substrate: tau_gateway::trace::Substrate::Host, mode: tau_gateway::trace::Mode::Dev,
-        status: RunStatus::Running, started_at: "2026-05-31T00:00:00Z".into(),
-        ended_at: None, total_turns: None, token_usage: None, stop_reason: None,
-        error: None, source: tau_gateway::trace::Source::Serve,
+        id: "STALE".into(),
+        agent_id: "greeter".into(),
+        prompt: "x".into(),
+        substrate: tau_gateway::trace::Substrate::Host,
+        mode: tau_gateway::trace::Mode::Dev,
+        status: RunStatus::Running,
+        started_at: "2026-05-31T00:00:00Z".into(),
+        ended_at: None,
+        total_turns: None,
+        token_usage: None,
+        stop_reason: None,
+        error: None,
+        source: tau_gateway::trace::Source::Serve,
     };
     store.write_header(&run).await.unwrap();
 

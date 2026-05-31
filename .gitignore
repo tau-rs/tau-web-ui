@@ -6,3 +6,4 @@
 *.tsbuildinfo
 /web/test-results/
 /web/playwright-report/
+/.superpowers/

@@ -21,7 +21,10 @@ pub enum RunItem {
     /// A runtime.event notification's params: {id, kind, data} -> (kind, data).
     Event { kind: String, data: Value },
     /// Final success: {final, token_usage, stop_reason}.
-    Final { token_usage: Value, stop_reason: Value },
+    Final {
+        token_usage: Value,
+        stop_reason: Value,
+    },
     /// Terminal error on the run's id.
     Error(RpcError),
 }
@@ -48,9 +51,14 @@ struct Inner {
     handshake: Mutex<Option<HandshakeInfo>>,
 }
 
-fn json_id(v: &Value) -> Option<i64> { v.as_i64() }
+fn json_id(v: &Value) -> Option<i64> {
+    v.as_i64()
+}
 fn req_id(id: &RequestId) -> i64 {
-    match id { RequestId::Int(i) => *i, RequestId::Str(s) => s.parse().unwrap_or(-1) }
+    match id {
+        RequestId::Int(i) => *i,
+        RequestId::Str(s) => s.parse().unwrap_or(-1),
+    }
 }
 
 impl ServeClient {
@@ -61,7 +69,9 @@ impl ServeClient {
         if no_sandbox {
             cmd.arg("--no-sandbox");
         }
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         cmd.kill_on_drop(true);
         let mut child = cmd.spawn().with_context(|| format!("spawn {bin:?}"))?;
 
@@ -102,7 +112,9 @@ impl ServeClient {
         tokio::spawn(async move {
             let mut lines = BufReader::new(stdout).lines();
             while let Ok(Some(line)) = lines.next_line().await {
-                if line.trim().is_empty() { continue; }
+                if line.trim().is_empty() {
+                    continue;
+                }
                 match serde_json::from_str::<Inbound>(&line) {
                     Ok(Inbound::Notification { method, params }) if method == "runtime.event" => {
                         if let Some(id) = params.get("id").and_then(json_id) {
@@ -115,7 +127,11 @@ impl ServeClient {
                     }
                     Ok(Inbound::Result { id, result }) => {
                         let id = req_id(&id);
-                        if result.get("final").and_then(|f| f.as_bool()).unwrap_or(false) {
+                        if result
+                            .get("final")
+                            .and_then(|f| f.as_bool())
+                            .unwrap_or(false)
+                        {
                             if let Some(tx) = pump_inner.runs.lock().await.remove(&id) {
                                 let _ = tx.send(RunItem::Final {
                                     token_usage: result["token_usage"].clone(),
@@ -141,12 +157,16 @@ impl ServeClient {
             // stdout closed -> child gone. Fail all in-flight runs AND unary waiters.
             for (_, tx) in pump_inner.runs.lock().await.drain() {
                 let _ = tx.send(RunItem::Error(RpcError {
-                    code: -32603, message: "tau serve child exited".into(), data: None,
+                    code: -32603,
+                    message: "tau serve child exited".into(),
+                    data: None,
                 }));
             }
             for (_, tx) in pump_inner.unary.lock().await.drain() {
                 let _ = tx.send(Err(RpcError {
-                    code: -32603, message: "tau serve child exited".into(), data: None,
+                    code: -32603,
+                    message: "tau serve child exited".into(),
+                    data: None,
                 }));
             }
         });
@@ -154,22 +174,35 @@ impl ServeClient {
         // Handshake (unary), then fill handshake in place.
         let client = ServeClient { inner };
         let res = client
-            .unary_call("meta.handshake", json!({
-                "client_name": "tau-gateway", "client_version": "0.1.0", "protocol_version": 1
-            }))
+            .unary_call(
+                "meta.handshake",
+                json!({
+                    "client_name": "tau-gateway", "client_version": "0.1.0", "protocol_version": 1
+                }),
+            )
             .await?;
         let hs = HandshakeInfo {
-            server_version: res["server_version"].as_str().unwrap_or_default().to_string(),
+            server_version: res["server_version"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
             project_path: res["project_path"].as_str().unwrap_or_default().to_string(),
-            agents: res["agents"].as_array().map(|a| {
-                a.iter().filter_map(|x| x.as_str().map(String::from)).collect()
-            }).unwrap_or_default(),
+            agents: res["agents"]
+                .as_array()
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default(),
         };
         *client.inner.handshake.lock().await = Some(hs);
         Ok(client)
     }
 
-    fn alloc_id(&self) -> i64 { self.inner.next_id.fetch_add(1, Ordering::SeqCst) }
+    fn alloc_id(&self) -> i64 {
+        self.inner.next_id.fetch_add(1, Ordering::SeqCst)
+    }
 
     async fn write_request(&self, req: &Request) -> Result<()> {
         let mut line = serde_json::to_string(req)?;
@@ -196,22 +229,37 @@ impl ServeClient {
     }
 
     pub async fn handshake(&self) -> HandshakeInfo {
-        self.inner.handshake.lock().await.clone().expect("handshake completed")
+        self.inner
+            .handshake
+            .lock()
+            .await
+            .clone()
+            .expect("handshake completed")
     }
 
     pub async fn ping(&self) -> Result<bool> {
-        Ok(self.unary_call("meta.ping", json!({})).await?["ok"].as_bool().unwrap_or(false))
+        Ok(self.unary_call("meta.ping", json!({})).await?["ok"]
+            .as_bool()
+            .unwrap_or(false))
     }
 
     /// Start a streaming run. Returns (serve_request_id, receiver of RunItems).
-    pub async fn run_streaming(&self, agent: &str, prompt: &str)
-        -> Result<(i64, mpsc::UnboundedReceiver<RunItem>)>
-    {
+    pub async fn run_streaming(
+        &self,
+        agent: &str,
+        prompt: &str,
+    ) -> Result<(i64, mpsc::UnboundedReceiver<RunItem>)> {
         let id = self.alloc_id();
         let (tx, rx) = mpsc::unbounded_channel();
         self.inner.runs.lock().await.insert(id, tx);
-        if let Err(e) = self.write_request(&Request::new(id, "runtime.run_streaming",
-            json!({"agent": agent, "prompt": prompt}))).await {
+        if let Err(e) = self
+            .write_request(&Request::new(
+                id,
+                "runtime.run_streaming",
+                json!({"agent": agent, "prompt": prompt}),
+            ))
+            .await
+        {
             self.inner.runs.lock().await.remove(&id);
             return Err(e);
         }
@@ -219,12 +267,21 @@ impl ServeClient {
     }
 
     pub async fn cancel(&self, target_id: i64) -> Result<bool> {
-        let res = self.unary_call("runtime.cancel", json!({"id": target_id})).await?;
+        let res = self
+            .unary_call("runtime.cancel", json!({"id": target_id}))
+            .await?;
         Ok(res["cancelled"].as_bool().unwrap_or(false))
     }
 
     /// True if the child is still running.
     pub async fn is_alive(&self) -> bool {
-        self.inner.child.lock().await.try_wait().ok().flatten().is_none()
+        self.inner
+            .child
+            .lock()
+            .await
+            .try_wait()
+            .ok()
+            .flatten()
+            .is_none()
     }
 }

@@ -36,7 +36,11 @@ async fn main() -> anyhow::Result<()> {
         let req: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => {
-                write_line(&mut *out.lock().await, &err_response(&Value::Null, -32700, "Parse error")).await?;
+                write_line(
+                    &mut *out.lock().await,
+                    &err_response(&Value::Null, -32700, "Parse error"),
+                )
+                .await?;
                 continue;
             }
         };
@@ -63,10 +67,17 @@ async fn main() -> anyhow::Result<()> {
                 write_line(&mut *out.lock().await, &resp).await?;
             }
             "meta.ping" => {
-                write_line(&mut *out.lock().await, &json!({"jsonrpc":"2.0","id":id,"result":{"ok":true}})).await?;
+                write_line(
+                    &mut *out.lock().await,
+                    &json!({"jsonrpc":"2.0","id":id,"result":{"ok":true}}),
+                )
+                .await?;
             }
             "runtime.run_streaming" => {
-                let agent = req["params"]["agent"].as_str().unwrap_or("greeter").to_string();
+                let agent = req["params"]["agent"]
+                    .as_str()
+                    .unwrap_or("greeter")
+                    .to_string();
                 let prompt = req["params"]["prompt"].as_str().unwrap_or("").to_string();
                 let id_str = id.to_string();
                 let out = out.clone();
@@ -102,11 +113,18 @@ async fn main() -> anyhow::Result<()> {
             "runtime.cancel" => {
                 let target = req["params"]["id"].to_string();
                 cancelled.lock().unwrap().insert(target);
-                write_line(&mut *out.lock().await,
-                    &json!({"jsonrpc":"2.0","id":id,"result":{"cancelled":true}})).await?;
+                write_line(
+                    &mut *out.lock().await,
+                    &json!({"jsonrpc":"2.0","id":id,"result":{"cancelled":true}}),
+                )
+                .await?;
             }
             _ => {
-                write_line(&mut *out.lock().await, &err_response(&id, -32601, "Method not found")).await?;
+                write_line(
+                    &mut *out.lock().await,
+                    &err_response(&id, -32601, "Method not found"),
+                )
+                .await?;
             }
         }
     }
@@ -116,7 +134,10 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn flag(args: &[String], name: &str) -> Option<String> {
-    args.iter().position(|a| a == name).and_then(|i| args.get(i + 1)).cloned()
+    args.iter()
+        .position(|a| a == name)
+        .and_then(|i| args.get(i + 1))
+        .cloned()
 }
 
 fn err_response(id: &Value, code: i64, msg: &str) -> Value {

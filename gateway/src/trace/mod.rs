@@ -9,22 +9,41 @@ use ts_rs::TS;
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
-pub enum Substrate { Host, Wasm, #[serde(rename = "c-abi")] CAbi, Mcu }
+pub enum Substrate {
+    Host,
+    Wasm,
+    #[serde(rename = "c-abi")]
+    CAbi,
+    Mcu,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
-pub enum Mode { Dev, Prod }
+pub enum Mode {
+    Dev,
+    Prod,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
-pub enum RunStatus { Running, Completed, Failed, Cancelled }
+pub enum RunStatus {
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
-pub enum Source { Serve, Log, Otlp, Wasm }
+pub enum Source {
+    Serve,
+    Log,
+    Otlp,
+    Wasm,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -38,7 +57,10 @@ pub struct TokenUsage {
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
-pub struct RunError { pub kind: String, pub detail: String }
+pub struct RunError {
+    pub kind: String,
+    pub detail: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -65,12 +87,26 @@ pub struct Run {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "snake_case")]
-pub enum SpanKind { Run, Turn, ToolCall, Agent, McpCall, ContextStep, #[ts(skip)] #[serde(other)] Other }
+pub enum SpanKind {
+    Run,
+    Turn,
+    ToolCall,
+    Agent,
+    McpCall,
+    ContextStep,
+    #[ts(skip)]
+    #[serde(other)]
+    Other,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(rename_all = "lowercase")]
-pub enum SpanStatus { Running, Ok, Error }
+pub enum SpanStatus {
+    Running,
+    Ok,
+    Error,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -105,10 +141,19 @@ pub struct Event {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum WsMessage {
     /// Full current span list, sent once on connect (replay).
-    Snapshot { run: Run, spans: Vec<Span> },
-    SpanUpdate { span: Span },
-    Event { event: Event },
-    RunUpdate { run: Run },
+    Snapshot {
+        run: Run,
+        spans: Vec<Span>,
+    },
+    SpanUpdate {
+        span: Span,
+    },
+    Event {
+        event: Event,
+    },
+    RunUpdate {
+        run: Run,
+    },
 }
 
 #[cfg(test)]
@@ -176,9 +221,15 @@ mod tests {
     #[test]
     fn ws_message_uses_type_tag_with_snake_case_variants() {
         let span = Span {
-            id: "s1".into(), parent_id: None, run_id: "R1".into(),
-            kind: SpanKind::ToolCall, name: "x".into(), status: SpanStatus::Running,
-            started_at: "t".into(), ended_at: None, attributes: serde_json::json!({}),
+            id: "s1".into(),
+            parent_id: None,
+            run_id: "R1".into(),
+            kind: SpanKind::ToolCall,
+            name: "x".into(),
+            status: SpanStatus::Running,
+            started_at: "t".into(),
+            ended_at: None,
+            attributes: serde_json::json!({}),
         };
         let v = serde_json::to_value(&WsMessage::SpanUpdate { span }).unwrap();
         assert_eq!(v["type"], "span_update");
