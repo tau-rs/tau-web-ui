@@ -4,10 +4,19 @@ import { RunsTable } from "./RunsTable";
 import type { Run } from "../types/Run";
 
 const run: Run = {
-  id: "R1", agent_id: "greeter", prompt: "hi", substrate: "host", mode: "dev",
-  status: "completed", started_at: "2026-05-31T00:00:00Z", ended_at: "2026-05-31T00:00:02Z",
-  total_turns: 1, token_usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 },
-  stop_reason: "end_turn", error: null, source: "serve",
+  id: "R1",
+  agent_id: "greeter",
+  prompt: "hi",
+  substrate: "host",
+  mode: "dev",
+  status: "completed",
+  started_at: "2026-05-31T00:00:00Z",
+  ended_at: "2026-05-31T00:00:02Z",
+  total_turns: 1,
+  token_usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 },
+  stop_reason: "end_turn",
+  error: null,
+  source: "serve",
 };
 
 describe("RunsTable", () => {

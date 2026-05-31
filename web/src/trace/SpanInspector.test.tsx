@@ -4,8 +4,14 @@ import { SpanInspector } from "./SpanInspector";
 import type { Span } from "../types/Span";
 
 const span: Span = {
-  id: "s1", parent_id: null, run_id: "R1", kind: "tool_call", name: "fs-read",
-  status: "ok", started_at: "t", ended_at: "t2",
+  id: "s1",
+  parent_id: null,
+  run_id: "R1",
+  kind: "tool_call",
+  name: "fs-read",
+  status: "ok",
+  started_at: "t",
+  ended_at: "t2",
   attributes: { args: { path: "/x" }, result: { ok: true } },
 };
 

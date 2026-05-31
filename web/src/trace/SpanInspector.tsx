@@ -5,8 +5,18 @@ function Section({ title, value }: { title: string; value: unknown }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 11, textTransform: "uppercase", color: "#888" }}>{title}</div>
-      <pre style={{ margin: 0, fontSize: 12, background: "#f8fafc", padding: 8, borderRadius: 6,
-        overflow: "auto" }}>{JSON.stringify(value, null, 2)}</pre>
+      <pre
+        style={{
+          margin: 0,
+          fontSize: 12,
+          background: "#f8fafc",
+          padding: 8,
+          borderRadius: 6,
+          overflow: "auto",
+        }}
+      >
+        {JSON.stringify(value, null, 2)}
+      </pre>
     </div>
   );
 }

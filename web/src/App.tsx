@@ -8,9 +8,7 @@ export function App() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <ProjectBar />
-      <main style={{ flex: 1, minHeight: 0 }}>
-        {hasTrace ? <TraceView /> : <RunsView />}
-      </main>
+      <main style={{ flex: 1, minHeight: 0 }}>{hasTrace ? <TraceView /> : <RunsView />}</main>
     </div>
   );
 }

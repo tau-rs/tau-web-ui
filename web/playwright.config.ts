@@ -6,7 +6,8 @@ export default defineConfig({
   use: { baseURL: "http://127.0.0.1:5173", trace: "on", video: "on", screenshot: "on" },
   webServer: [
     {
-      command: "./target/debug/tau-gateway --project ./fixtures/demo --tau-bin ./target/debug/fake-tau-serve --no-sandbox --port 4317",
+      command:
+        "./target/debug/tau-gateway --project ./fixtures/demo --tau-bin ./target/debug/fake-tau-serve --no-sandbox --port 4317",
       url: "http://127.0.0.1:4317/api/health",
       cwd: "..",
       reuseExistingServer: true,

@@ -3,8 +3,17 @@ import { spansToFlow } from "./layout";
 import type { Span } from "../types/Span";
 
 function span(id: string, parent: string | null, kind: Span["kind"], status: Span["status"]): Span {
-  return { id, parent_id: parent, run_id: "R1", kind, name: id, status,
-    started_at: "t", ended_at: null, attributes: {} };
+  return {
+    id,
+    parent_id: parent,
+    run_id: "R1",
+    kind,
+    name: id,
+    status,
+    started_at: "t",
+    ended_at: null,
+    attributes: {},
+  };
 }
 
 describe("spansToFlow", () => {

@@ -10,7 +10,9 @@ export function TraceView() {
   const close = useStore((s) => s.closeTrace);
 
   if (!trace) {
-    return <section style={{ padding: 16, color: "#888" }}>Select a run to view its trace.</section>;
+    return (
+      <section style={{ padding: 16, color: "#888" }}>Select a run to view its trace.</section>
+    );
   }
   const selected = trace.spans.find((s) => s.id === selectedId) ?? null;
 

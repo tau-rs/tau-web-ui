@@ -1,12 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { getProject, listRuns, launchRun, getTrace, cancelRun } from "./client";
 
-beforeEach(() => { vi.restoreAllMocks(); });
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
 
 function mockFetch(body: unknown, ok = true) {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
-    ok, json: async () => body, text: async () => JSON.stringify(body),
-  }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    }),
+  );
 }
 
 describe("api client", () => {

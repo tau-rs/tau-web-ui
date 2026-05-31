@@ -3,11 +3,19 @@ import type { Run } from "../types/Run";
 import type { Span } from "../types/Span";
 import type { WsMessage } from "../types/WsMessage";
 import {
-  getProject, listRuns, launchRun, getTrace, cancelRun, openRunSocket,
+  getProject,
+  listRuns,
+  launchRun,
+  getTrace,
+  cancelRun,
+  openRunSocket,
   type Project,
 } from "../api/client";
 
-interface TraceState { run: Run; spans: Span[] }
+interface TraceState {
+  run: Run;
+  spans: Span[];
+}
 
 interface AppStore {
   project: Project | null;
@@ -59,7 +67,10 @@ export const useStore = create<AppStore>((set, get) => ({
     }
   },
 
-  closeTrace: () => { get().socket?.close(); set({ socket: null, currentTrace: null, assistantText: "" }); },
+  closeTrace: () => {
+    get().socket?.close();
+    set({ socket: null, currentTrace: null, assistantText: "" });
+  },
 
   cancelCurrent: async () => {
     const id = get().currentTrace?.run.id;

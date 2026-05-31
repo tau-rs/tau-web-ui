@@ -8,7 +8,9 @@ export function RunsView() {
   const refreshRuns = useStore((s) => s.refreshRuns);
   const openTrace = useStore((s) => s.openTrace);
 
-  useEffect(() => { refreshRuns(); }, [refreshRuns]);
+  useEffect(() => {
+    refreshRuns();
+  }, [refreshRuns]);
 
   return (
     <section style={{ padding: 16 }}>
