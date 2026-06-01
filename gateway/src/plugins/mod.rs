@@ -226,6 +226,14 @@ impl PluginsSource for MockPlugins {
     }
 }
 
+/// Return the plugin catalog. Unlike tools' `list_tools`, there is no per-project
+/// computation — the describe/transcript are project-independent mock data — so
+/// this is a thin pass-through that gives `CliPlugins` a single composition point
+/// for the future real path.
+pub fn list_plugins(source: &dyn PluginsSource) -> Vec<PluginDetail> {
+    source.catalog()
+}
+
 /// CLI seam — not wired in v1 (the mock covers fake-tau-serve).
 pub struct CliPlugins;
 
@@ -264,5 +272,11 @@ mod tests {
         assert!(anthropic.transcript.iter().any(|f| f.method == "llm.generate"));
 
         assert!(CliPlugins.catalog().is_empty());
+    }
+
+    #[test]
+    fn list_plugins_returns_catalog() {
+        assert_eq!(list_plugins(&MockPlugins).len(), 4);
+        assert!(list_plugins(&CliPlugins).is_empty());
     }
 }

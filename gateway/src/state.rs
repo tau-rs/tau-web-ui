@@ -16,6 +16,7 @@ use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, Verif
 use crate::serve_client::{RunItem, ServeClient};
 use crate::skills::{self, InstalledSkills, SkillDetail, SkillSummary};
 use crate::store::{RunStore, TraceReplay};
+use crate::plugins::{self, PluginDetail, PluginsSource};
 use crate::tools::{self, ToolDetail, ToolsSource};
 use crate::trace::*;
 use crate::workflow::{MockRunner, WorkflowItem, WorkflowRunner};
@@ -32,6 +33,7 @@ pub struct Inner {
     package_ops: Box<dyn PackageOps>,
     installed_skills: Box<dyn InstalledSkills>,
     tools_source: Box<dyn ToolsSource>,
+    plugins_source: Box<dyn PluginsSource>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -72,6 +74,11 @@ impl AppState {
         } else {
             Box::new(tools::CliTools)
         };
+        let plugins_source: Box<dyn PluginsSource> = if is_mock {
+            Box::new(plugins::MockPlugins)
+        } else {
+            Box::new(plugins::CliPlugins)
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -81,6 +88,7 @@ impl AppState {
             package_ops,
             installed_skills,
             tools_source,
+            plugins_source,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -471,6 +479,10 @@ impl AppState {
 
     pub fn list_tools(&self) -> Vec<ToolDetail> {
         tools::list_tools(&self.0.project, self.0.tools_source.as_ref())
+    }
+
+    pub fn list_plugins(&self) -> Vec<PluginDetail> {
+        plugins::list_plugins(self.0.plugins_source.as_ref())
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
