@@ -10,7 +10,10 @@ use crate::api::scope::Scoped;
 use crate::config::AgentDetail;
 
 fn valid_agent_id(id: &str) -> bool {
-    !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
 pub async fn list(Scoped(state): Scoped) -> Result<Json<Vec<AgentDetail>>, (StatusCode, String)> {

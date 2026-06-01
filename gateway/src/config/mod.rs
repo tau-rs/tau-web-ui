@@ -107,7 +107,10 @@ fn parse_agent(id: &str, a: &toml::Value) -> AgentDetail {
         .get("prompt")
         .map(|p| AgentPrompt {
             system: p.get("system").and_then(|v| v.as_str()).map(String::from),
-            system_file: p.get("system_file").and_then(|v| v.as_str()).map(String::from),
+            system_file: p
+                .get("system_file")
+                .and_then(|v| v.as_str())
+                .map(String::from),
         })
         .unwrap_or_default();
     let requires_tools = a
@@ -216,7 +219,11 @@ pub fn write_agent(project: &Path, agent: &AgentDetail) -> Result<()> {
     // prompt: at most one of system / system_file
     match (
         agent.prompt.system.as_deref().filter(|s| !s.is_empty()),
-        agent.prompt.system_file.as_deref().filter(|s| !s.is_empty()),
+        agent
+            .prompt
+            .system_file
+            .as_deref()
+            .filter(|s| !s.is_empty()),
     ) {
         (Some(s), _) => {
             at["prompt"] = toml_edit::table();
@@ -364,14 +371,17 @@ version = "^0.1"
     fn add_agent_registers_a_runnable_agent() {
         let d = tempfile::tempdir().unwrap();
         write_fixture(d.path());
-        write_agent(d.path(), &AgentDetail {
-            id: "researcher-pro".into(),
-            display_name: Some("researcher-pro".into()),
-            package: Some("researcher-pro@^1.0".into()),
-            llm_backend: Some("anthropic".into()),
-            prompt: AgentPrompt::default(),
-            requires_tools: vec![],
-        })
+        write_agent(
+            d.path(),
+            &AgentDetail {
+                id: "researcher-pro".into(),
+                display_name: Some("researcher-pro".into()),
+                package: Some("researcher-pro@^1.0".into()),
+                llm_backend: Some("anthropic".into()),
+                prompt: AgentPrompt::default(),
+                requires_tools: vec![],
+            },
+        )
         .unwrap();
         let c = read(d.path()).unwrap();
         let a = c.agents.iter().find(|a| a.id == "researcher-pro").unwrap();
@@ -424,7 +434,10 @@ version = "^0.1"
 
         let back = read_agent(d.path(), "researcher").unwrap().unwrap();
         assert!(back.prompt.system.is_none());
-        assert_eq!(back.prompt.system_file.as_deref(), Some("agents/researcher.md"));
+        assert_eq!(
+            back.prompt.system_file.as_deref(),
+            Some("agents/researcher.md")
+        );
         assert!(back.requires_tools.is_empty());
     }
 
