@@ -57,6 +57,14 @@ pub struct ProjectListItem {
     pub summary: ProjectSummary,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CrossProjectRun {
+    pub project_id: ProjectId,
+    pub project_name: String,
+    pub run: Run,
+}
+
 /// Lowercase, collapse non-[a-z0-9-] runs to a single '-', trim leading/trailing '-'.
 pub fn slug(name: &str) -> String {
     let mut out = String::new();
@@ -274,6 +282,39 @@ impl ProjectRegistry {
     /// All project metas in insertion order.
     pub async fn metas(&self) -> Vec<ProjectMeta> {
         self.0.projects.read().await.values().map(|e| e.meta.clone()).collect()
+    }
+
+    /// Recent runs across all projects, newest first. `status` (if set) filters
+    /// by RunStatus serde value ("failed", "running", "completed", "cancelled").
+    pub async fn cross_runs(&self, status: Option<&str>, limit: usize) -> Vec<CrossProjectRun> {
+        let entries: Vec<(ProjectId, String, AppState)> = {
+            let map = self.0.projects.read().await;
+            map.values()
+                .map(|e| (e.meta.id.clone(), e.meta.name.clone(), e.state.clone()))
+                .collect()
+        };
+        let mut out: Vec<CrossProjectRun> = vec![];
+        for (pid, pname, state) in entries {
+            for run in state.list_runs().await {
+                if let Some(s) = status {
+                    let matches = serde_json::to_value(&run.status)
+                        .ok()
+                        .and_then(|v| v.as_str().map(|x| x == s))
+                        .unwrap_or(false);
+                    if !matches {
+                        continue;
+                    }
+                }
+                out.push(CrossProjectRun {
+                    project_id: pid.clone(),
+                    project_name: pname.clone(),
+                    run,
+                });
+            }
+        }
+        out.sort_by(|a, b| b.run.started_at.cmp(&a.run.started_at));
+        out.truncate(limit);
+        out
     }
 
     /// Compute a summary per project from persisted runs + config. `now` is an

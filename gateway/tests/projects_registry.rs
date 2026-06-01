@@ -110,3 +110,34 @@ async fn summaries_reflect_runs() {
     assert!(demo.summary.agents >= 1);
     assert!(demo.summary.success_rate > 0.0);
 }
+
+#[tokio::test]
+async fn cross_runs_aggregates_and_filters() {
+    let data = tempfile::tempdir().unwrap();
+    let a = make_project("alpha");
+    let b = make_project("beta");
+    let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
+        .await
+        .unwrap();
+    reg.add_local(a.path()).await.unwrap();
+    reg.add_local(b.path()).await.unwrap();
+    reg.state("alpha")
+        .await
+        .unwrap()
+        .launch("greeter".into(), "hi".into())
+        .await
+        .unwrap();
+    reg.state("beta")
+        .await
+        .unwrap()
+        .launch("greeter".into(), "hi".into())
+        .await
+        .unwrap();
+
+    let all = reg.cross_runs(None, 50).await;
+    assert_eq!(all.len(), 2);
+    let ids: Vec<&str> = all.iter().map(|r| r.project_id.as_str()).collect();
+    assert!(ids.contains(&"alpha") && ids.contains(&"beta"));
+
+    assert_eq!(reg.cross_runs(None, 1).await.len(), 1);
+}
