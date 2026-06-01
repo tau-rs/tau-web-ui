@@ -83,8 +83,8 @@ function ToolRow({
             </div>
             <div className="mb-1.5">
               <span className="text-[9px] uppercase text-muted">capabilities </span>
-              {tool.capabilities.map((c, i) => (
-                <span key={i} className="mr-2 font-mono">
+              {tool.capabilities.map((c) => (
+                <span key={c.kind} className="mr-2 font-mono">
                   {c.kind}{" "}
                   {Object.entries(c.fields)
                     .filter((entry): entry is [string, string[]] => entry[1] !== undefined)
@@ -99,9 +99,9 @@ function ToolRow({
                 <span className="text-muted">unused</span>
               ) : (
                 <>
-                  {tool.used_by.slice(0, MAX_CHIPS).map((u, i) => (
+                  {tool.used_by.slice(0, MAX_CHIPS).map((u) => (
                     <span
-                      key={i}
+                      key={`${u.kind}:${u.name}`}
                       className={`mr-1 inline-block rounded-full px-2 text-[9px] ${
                         u.kind === "skill" ? "bg-st-ok/15 text-st-ok" : "bg-accent/10 text-accent"
                       }`}
