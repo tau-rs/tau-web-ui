@@ -3,7 +3,11 @@ import type { ProjectListItem } from "../types/ProjectListItem";
 
 const fmtTok = (n: bigint | number) => {
   const v = Number(n);
-  return v >= 1_000_000 ? `${(v / 1e6).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${v}`;
+  return v >= 1_000_000
+    ? `${(v / 1e6).toFixed(1)}M`
+    : v >= 1000
+      ? `${(v / 1000).toFixed(1)}k`
+      : `${v}`;
 };
 
 function dotColor(item: ProjectListItem): string {

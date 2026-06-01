@@ -41,7 +41,9 @@ export function Navbar() {
                 key={p.meta.id}
                 onClick={() => switchTo(p.meta.id)}
                 className={`block w-full rounded px-2 py-1 text-left text-xs ${
-                  p.meta.id === pid ? "bg-accent/10 font-semibold text-accent" : "text-muted hover:text-fg"
+                  p.meta.id === pid
+                    ? "bg-accent/10 font-semibold text-accent"
+                    : "text-muted hover:text-fg"
                 }`}
               >
                 {p.meta.name}

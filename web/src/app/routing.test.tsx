@@ -9,7 +9,10 @@ beforeEach(() =>
     currentTrace: null,
     runs: [],
     projects: [
-      { meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } }, summary: {} } as never,
+      {
+        meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } },
+        summary: {},
+      } as never,
     ],
   }),
 );

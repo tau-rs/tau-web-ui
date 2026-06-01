@@ -132,7 +132,10 @@ describe("store project scope", () => {
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => [
-          { meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } }, summary: {} },
+          {
+            meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } },
+            summary: {},
+          },
         ],
       }),
     );

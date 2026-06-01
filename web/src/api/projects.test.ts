@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { listProjects, getCrossRuns, addProjectByPath, addProjectByGit, removeProject } from "./projects";
+import {
+  listProjects,
+  getCrossRuns,
+  addProjectByPath,
+  addProjectByGit,
+  removeProject,
+} from "./projects";
 
 beforeEach(() => vi.restoreAllMocks());
 

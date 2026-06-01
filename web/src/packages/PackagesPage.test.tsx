@@ -16,7 +16,11 @@ describe("PackagesPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string, init?: RequestInit) => {
-        if (url.includes("/packages") && !url.includes("/install") && (!init || init.method !== "POST"))
+        if (
+          url.includes("/packages") &&
+          !url.includes("/install") &&
+          (!init || init.method !== "POST")
+        )
           return Promise.resolve({ ok: true, json: async () => ({ packages: list }) });
         if (url.includes("/packages/install")) {
           list = [
