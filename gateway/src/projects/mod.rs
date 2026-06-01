@@ -248,6 +248,54 @@ impl ProjectRegistry {
         self.insert_entry(meta).await
     }
 
+    /// Promote the workspace to a real project at `target`: copy its authoring
+    /// files there, register it, then reset the workspace to a clean slate.
+    pub async fn save_workspace_as(&self, target: &Path) -> Result<ProjectMeta> {
+        let ws_path = {
+            let map = self.0.projects.read().await;
+            let e = map.get(WORKSPACE_ID).context("no workspace registered")?;
+            PathBuf::from(&e.meta.path)
+        };
+        if target.join("tau.toml").exists() {
+            bail!("target already contains a tau.toml: {}", target.display());
+        }
+        std::fs::create_dir_all(target)
+            .with_context(|| format!("create {}", target.display()))?;
+        copy_dir_recursive(&ws_path, target)?;
+        let meta = self.add_local(target).await?;
+        self.reset_workspace(&ws_path).await?;
+        Ok(meta)
+    }
+
+    /// Blank the workspace's authoring files and clear its run store + in-memory runs.
+    async fn reset_workspace(&self, ws_path: &Path) -> Result<()> {
+        std::fs::write(ws_path.join("tau.toml"), "[project]\nname = \"workspace\"\n")?;
+        for sub in ["agents", "workflows"] {
+            let p = ws_path.join(sub);
+            if p.exists() {
+                std::fs::remove_dir_all(&p).ok();
+            }
+        }
+        let runs_dir = self
+            .0
+            .data_root
+            .join("projects")
+            .join(WORKSPACE_ID)
+            .join("runs");
+        if runs_dir.exists() {
+            std::fs::remove_dir_all(&runs_dir).ok();
+        }
+        std::fs::create_dir_all(&runs_dir).ok();
+        // Rebuild the workspace entry so the in-memory run list is cleared too.
+        let meta = ProjectMeta {
+            id: WORKSPACE_ID.to_string(),
+            name: "workspace".to_string(),
+            path: ws_path.to_string_lossy().to_string(),
+            source: ProjectSource::Workspace,
+        };
+        self.insert_entry(meta).await
+    }
+
     /// Register a project already on disk at `path`. Idempotent on absolute path:
     /// if a project with the same canonical path exists, return its meta unchanged.
     pub async fn add_local(&self, path: &Path) -> Result<ProjectMeta> {
@@ -450,6 +498,22 @@ fn within_24h(ended_at: Option<&str>, now: Option<chrono::DateTime<chrono::Fixed
         (Some(ended), Some(now)) => (now - ended).num_hours() < 24 && now >= ended,
         _ => false,
     }
+}
+
+/// Recursively copy the contents of `src` into `dst` (files + subdirs).
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let from = entry.path();
+        let to = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&from, &to)?;
+        } else {
+            std::fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
