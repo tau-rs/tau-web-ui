@@ -12,10 +12,16 @@ export function ToolsPage() {
         <div className="ml-2 flex gap-1">
           <span className={tab(true)}>Skills</span>
           <span className={tab(false, true)}>
-            Tools <span className="ml-1 rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">soon</span>
+            Tools{" "}
+            <span className="ml-1 rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">
+              soon
+            </span>
           </span>
           <span className={tab(false, true)}>
-            Plugins <span className="ml-1 rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">soon</span>
+            Plugins{" "}
+            <span className="ml-1 rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">
+              soon
+            </span>
           </span>
         </div>
       </div>

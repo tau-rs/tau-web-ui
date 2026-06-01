@@ -27,7 +27,10 @@ export function CapabilitiesEditor({
   }
 
   function setParam(i: number, param: string, csv: string) {
-    const list = csv.split(",").map((s) => s.trim()).filter(Boolean);
+    const list = csv
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     const fields = { ...capabilities[i].fields, [param]: list };
     update(i, { fields });
   }

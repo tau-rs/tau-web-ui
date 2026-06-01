@@ -8,7 +8,10 @@ export function SkillsIndex() {
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [url, setUrl] = useState("");
 
-  const reload = () => listSkills().then(setSkills).catch(() => {});
+  const reload = () =>
+    listSkills()
+      .then(setSkills)
+      .catch(() => {});
   useEffect(() => {
     reload();
   }, []);
@@ -31,7 +34,10 @@ export function SkillsIndex() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
-        <button onClick={onImport} className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold">
+        <button
+          onClick={onImport}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold"
+        >
           Import skill
         </button>
         <Link
@@ -68,7 +74,9 @@ export function SkillsIndex() {
               </td>
               <td className="px-2 py-1 text-muted">{s.version ?? "—"}</td>
               <td className="px-2 py-1 font-mono text-muted">{s.source}</td>
-              <td className="px-2 py-1 font-mono text-muted">{s.capability_kinds.join(", ") || "—"}</td>
+              <td className="px-2 py-1 font-mono text-muted">
+                {s.capability_kinds.join(", ") || "—"}
+              </td>
               <td className="px-2 py-1 text-muted">{s.requires_count}</td>
             </tr>
           ))}

@@ -122,6 +122,44 @@ test("create, edit, and delete an agent", async ({ page }) => {
   await expect(page.getByRole("link", { name: "e2e-bot" })).toHaveCount(0);
 });
 
+test("skills: create, edit, delete, import", async ({ page }) => {
+  await page.goto("/projects/demo/tools");
+  await expect(page.getByRole("heading", { name: /tools & skills/i })).toBeVisible({
+    timeout: 5000,
+  });
+  await expect(page.getByRole("link", { name: "critic" })).toBeVisible();
+
+  // create a new skill
+  await page.getByRole("link", { name: /new skill/i }).click();
+  await page.getByLabel("skill name").fill("e2e-skill");
+  await page.getByLabel("description").fill("e2e skill");
+  await page.getByLabel("SKILL.md body").fill("you do e2e things");
+  await page.getByRole("button", { name: "+ Add capability" }).click();
+  await page.getByLabel("paths 0").fill("/tmp/**");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+
+  // appears in the index
+  await page.goto("/projects/demo/tools");
+  await expect(page.getByRole("link", { name: "e2e-skill" })).toBeVisible({ timeout: 5000 });
+
+  // edit + save
+  await page.getByRole("link", { name: "e2e-skill" }).click();
+  await expect(page.getByLabel("description")).toHaveValue("e2e skill");
+  await page.getByLabel("SKILL.md body").fill("updated body");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+
+  // import an installed skill
+  await page.goto("/projects/demo/tools");
+  await page.getByLabel("import skill git url").fill("https://github.com/acme/translator.git");
+  await page.getByRole("button", { name: "Import skill" }).click();
+  await expect(page.getByRole("link", { name: "translator" })).toBeVisible({ timeout: 5000 });
+
+  // delete the created skill
+  await page.goto("/projects/demo/tools/skills/e2e-skill");
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("link", { name: "e2e-skill" })).toHaveCount(0);
+});
+
 test("nav shell on the overview + workspace save-as", async ({ page }) => {
   await page.goto("/");
   // shell is present on the overview; scoped groups are greyed (Dashboard is not a link)

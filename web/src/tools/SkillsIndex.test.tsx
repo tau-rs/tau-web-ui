@@ -4,8 +4,22 @@ import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { SkillsIndex } from "./SkillsIndex";
 
 const skills = [
-  { name: "critic", version: "0.1.0", source: "local://critic", editable: true, capability_kinds: [], requires_count: 1 },
-  { name: "web-search", version: "1.2.0", source: "github.com/tau/web-search", editable: false, capability_kinds: ["net.http"], requires_count: 0 },
+  {
+    name: "critic",
+    version: "0.1.0",
+    source: "local://critic",
+    editable: true,
+    capability_kinds: [],
+    requires_count: 1,
+  },
+  {
+    name: "web-search",
+    version: "1.2.0",
+    source: "github.com/tau/web-search",
+    editable: false,
+    capability_kinds: ["net.http"],
+    requires_count: 0,
+  },
 ];
 
 beforeEach(() => {
