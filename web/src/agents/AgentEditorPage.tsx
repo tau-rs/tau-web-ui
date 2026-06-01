@@ -55,6 +55,8 @@ export function AgentEditorPage() {
         promptMode === "system"
           ? { system: a.prompt.system || null, system_file: null }
           : { system: null, system_file: a.prompt.system_file || null },
+      // Drop blank tool rows so we never write a meaningless requires.tools entry.
+      requires_tools: a.requires_tools.filter((t) => t.name.trim() && t.source.trim()),
     };
     try {
       await putAgent(payload, { create: isNew });
