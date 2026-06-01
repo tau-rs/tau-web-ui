@@ -72,6 +72,39 @@ impl ToolsSource for CliTools {
     }
 }
 
+/// Compose the catalog with per-project `used_by`: scan the project's agents
+/// (`requires.tools`) + local skills (`requires_tools`) for each tool name.
+pub fn list_tools(project: &Path, source: &dyn ToolsSource) -> Vec<ToolDetail> {
+    let agents = crate::config::list_agents(project).unwrap_or_default();
+    let skills: Vec<_> = crate::skills::list_local(project)
+        .iter()
+        .filter_map(|s| crate::skills::read_local(project, &s.name).ok().flatten())
+        .collect();
+
+    let mut tools = source.catalog();
+    for t in &mut tools {
+        let mut users = vec![];
+        for a in &agents {
+            if a.requires_tools.iter().any(|r| r.name == t.name) {
+                users.push(ToolUser {
+                    kind: "agent".into(),
+                    name: a.id.clone(),
+                });
+            }
+        }
+        for s in &skills {
+            if s.requires_tools.iter().any(|r| r.name == t.name) {
+                users.push(ToolUser {
+                    kind: "skill".into(),
+                    name: s.name.clone(),
+                });
+            }
+        }
+        t.used_by = users;
+    }
+    tools
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +120,22 @@ mod tests {
         assert_eq!(fsr.capabilities[0].kind, "fs.read");
         assert!(fsr.used_by.is_empty()); // filled by list_tools
         assert!(CliTools.catalog().is_empty());
+    }
+
+    fn demo() -> std::path::PathBuf {
+        let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        p.pop();
+        p.push("fixtures/demo");
+        p
+    }
+
+    #[test]
+    fn list_tools_computes_used_by_from_demo() {
+        let tools = list_tools(&demo(), &MockTools);
+        let fsr = tools.iter().find(|t| t.name == "fs-read").unwrap();
+        // the seeded `critic` skill requires fs-read
+        assert!(fsr.used_by.iter().any(|u| u.kind == "skill" && u.name == "critic"));
+        let shell = tools.iter().find(|t| t.name == "shell").unwrap();
+        assert!(shell.used_by.is_empty());
     }
 }

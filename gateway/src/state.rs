@@ -15,6 +15,7 @@ use crate::config::{self, AgentDetail};
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
 use crate::serve_client::{RunItem, ServeClient};
 use crate::skills::{self, InstalledSkills, SkillDetail, SkillSummary};
+use crate::tools::{self, ToolDetail, ToolsSource};
 use crate::store::{RunStore, TraceReplay};
 use crate::trace::*;
 use crate::workflow::{MockRunner, WorkflowItem, WorkflowRunner};
@@ -30,6 +31,7 @@ pub struct Inner {
     workflow_runner: Box<dyn WorkflowRunner>,
     package_ops: Box<dyn PackageOps>,
     installed_skills: Box<dyn InstalledSkills>,
+    tools_source: Box<dyn ToolsSource>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -65,6 +67,11 @@ impl AppState {
         } else {
             Box::new(skills::CliInstalled)
         };
+        let tools_source: Box<dyn ToolsSource> = if is_mock {
+            Box::new(tools::MockTools)
+        } else {
+            Box::new(tools::CliTools)
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -73,6 +80,7 @@ impl AppState {
             workflow_runner,
             package_ops,
             installed_skills,
+            tools_source,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -459,6 +467,10 @@ impl AppState {
 
     pub fn import_skill(&self, git_url: &str) -> anyhow::Result<String> {
         self.0.installed_skills.import(git_url)
+    }
+
+    pub fn list_tools(&self) -> Vec<ToolDetail> {
+        tools::list_tools(&self.0.project, self.0.tools_source.as_ref())
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
