@@ -119,3 +119,26 @@ describe("store.loadWorkflows", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("store project scope", () => {
+  it("setActiveProject records the id", () => {
+    useStore.getState().setActiveProject("acme-bot");
+    expect(useStore.getState().activeProjectId).toBe("acme-bot");
+  });
+
+  it("loadProjects populates the projects list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => [
+          { meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } }, summary: {} },
+        ],
+      }),
+    );
+    await useStore.getState().loadProjects();
+    expect(useStore.getState().projects).toHaveLength(1);
+    expect(useStore.getState().projects[0].meta.id).toBe("demo");
+    vi.restoreAllMocks();
+  });
+});

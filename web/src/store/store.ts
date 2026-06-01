@@ -13,9 +13,12 @@ import {
   cancelRun,
   openRunSocket,
   getHealth,
+  setActiveProject as clientSetActiveProject,
   type Project,
   type Health,
 } from "../api/client";
+import { listProjects } from "../api/projects";
+import type { ProjectListItem } from "../types/ProjectListItem";
 
 interface TraceState {
   run: Run;
@@ -31,6 +34,10 @@ interface AppStore {
   assistantText: string;
   selectedSpanId: string | null;
   socket: WebSocket | null;
+  activeProjectId: string;
+  projects: ProjectListItem[];
+  setActiveProject: (pid: string) => void;
+  loadProjects: () => Promise<void>;
 
   loadHealth: () => Promise<void>;
   loadProject: () => Promise<void>;
@@ -61,6 +68,8 @@ export const useStore = create<AppStore>((set, get) => ({
   assistantText: "",
   selectedSpanId: null,
   socket: null,
+  activeProjectId: "",
+  projects: [],
 
   loadHealth: async () => {
     try {
@@ -70,6 +79,19 @@ export const useStore = create<AppStore>((set, get) => ({
     }
   },
   loadProject: async () => set({ project: await getProject() }),
+
+  setActiveProject: (pid) => {
+    clientSetActiveProject(pid);
+    set({ activeProjectId: pid });
+  },
+  loadProjects: async () => {
+    try {
+      set({ projects: await listProjects() });
+    } catch {
+      /* gateway unreachable — leave projects as-is */
+    }
+  },
+
   refreshRuns: async (filters) => set({ runs: await listRuns(filters) }),
 
   launch: async (agent, prompt) => {
