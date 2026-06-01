@@ -1,0 +1,13 @@
+name = "fact-checker"
+version = "0.1.0"
+description = "Validates claims against bundled references."
+authors = []
+source = "local://fact-checker"
+kind = "skill"
+dependencies = []
+
+[[capabilities]]
+kind = "fs.read"
+paths = ["${SKILL_DIR}/references/**"]
+
+[skill]

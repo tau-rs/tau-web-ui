@@ -1,0 +1,15 @@
+name = "critic"
+version = "0.1.0"
+description = "Reviews drafts for clarity, completeness, and rhetoric."
+authors = []
+source = "local://critic"
+kind = "skill"
+dependencies = []
+capabilities = []
+
+[skill]
+
+[[skill.requires_tools]]
+name = "fs-read"
+source = "https://github.com/tau/fs-read.git"
+version = "^0.1"
