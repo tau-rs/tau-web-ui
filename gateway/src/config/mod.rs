@@ -179,21 +179,97 @@ pub fn write_project(project: &Path, name: &str, description: Option<&str>) -> R
     Ok(())
 }
 
-pub fn add_agent(
-    project: &Path,
-    id: &str,
-    display_name: &str,
-    package: &str,
-    llm_backend: &str,
-) -> Result<()> {
+fn set_or_remove(tbl: &mut toml_edit::Table, key: &str, val: &Option<String>) {
+    match val.as_deref().filter(|s| !s.is_empty()) {
+        Some(s) => {
+            tbl[key] = toml_edit::value(s);
+        }
+        None => {
+            tbl.remove(key);
+        }
+    }
+}
+
+/// Upsert a full `[agents.<id>]` table, preserving everything else in the file.
+/// Raw write with NO existence check — the create-time 409 guard lives in the
+/// API layer.
+pub fn write_agent(project: &Path, agent: &AgentDetail) -> Result<()> {
     let path = project.join("tau.toml");
     let text = std::fs::read_to_string(&path).unwrap_or_default();
     let mut doc: toml_edit::DocumentMut = text.parse().context("parse tau.toml")?;
-    doc["agents"][id]["display_name"] = toml_edit::value(display_name);
-    doc["agents"][id]["package"] = toml_edit::value(package);
-    doc["agents"][id]["llm_backend"] = toml_edit::value(llm_backend);
+
+    if !doc.contains_key("agents") {
+        doc["agents"] = toml_edit::table();
+    }
+    let agents = doc["agents"].as_table_mut().context("agents not a table")?;
+    if !agents.contains_key(&agent.id) {
+        agents[&agent.id] = toml_edit::table();
+    }
+    let at = agents[&agent.id]
+        .as_table_mut()
+        .context("agent entry not a table")?;
+
+    set_or_remove(at, "display_name", &agent.display_name);
+    set_or_remove(at, "package", &agent.package);
+    set_or_remove(at, "llm_backend", &agent.llm_backend);
+
+    // prompt: at most one of system / system_file
+    match (
+        agent.prompt.system.as_deref().filter(|s| !s.is_empty()),
+        agent.prompt.system_file.as_deref().filter(|s| !s.is_empty()),
+    ) {
+        (Some(s), _) => {
+            at["prompt"] = toml_edit::table();
+            at["prompt"]["system"] = toml_edit::value(s);
+        }
+        (None, Some(f)) => {
+            at["prompt"] = toml_edit::table();
+            at["prompt"]["system_file"] = toml_edit::value(f);
+        }
+        (None, None) => {
+            at.remove("prompt");
+        }
+    }
+
+    // requires.tools: rewrite the array-of-tables (remove when empty)
+    if agent.requires_tools.is_empty() {
+        at.remove("requires");
+    } else {
+        let mut aot = toml_edit::ArrayOfTables::new();
+        for t in &agent.requires_tools {
+            let mut tt = toml_edit::Table::new();
+            tt["name"] = toml_edit::value(t.name.as_str());
+            tt["source"] = toml_edit::value(t.source.as_str());
+            if let Some(v) = t.version.as_deref().filter(|s| !s.is_empty()) {
+                tt["version"] = toml_edit::value(v);
+            }
+            aot.push(tt);
+        }
+        at["requires"] = toml_edit::table();
+        at["requires"]["tools"] = toml_edit::Item::ArrayOfTables(aot);
+    }
+
     std::fs::write(&path, doc.to_string()).with_context(|| format!("write {path:?}"))?;
     Ok(())
+}
+
+/// Remove the `[agents.<id>]` table (and sub-tables). Returns false if absent.
+pub fn delete_agent(project: &Path, id: &str) -> Result<bool> {
+    let path = project.join("tau.toml");
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut doc: toml_edit::DocumentMut = text.parse().context("parse tau.toml")?;
+    let present = doc
+        .get("agents")
+        .and_then(|a| a.as_table())
+        .map(|t| t.contains_key(id))
+        .unwrap_or(false);
+    if present {
+        if let Some(at) = doc["agents"].as_table_mut() {
+            at.remove(id);
+        }
+        std::fs::write(&path, doc.to_string()).with_context(|| format!("write {path:?}"))?;
+    }
+    Ok(present)
 }
 
 #[cfg(test)]
@@ -288,17 +364,77 @@ version = "^0.1"
     fn add_agent_registers_a_runnable_agent() {
         let d = tempfile::tempdir().unwrap();
         write_fixture(d.path());
-        add_agent(
-            d.path(),
-            "researcher-pro",
-            "researcher-pro",
-            "researcher-pro@^1.0",
-            "anthropic",
-        )
+        write_agent(d.path(), &AgentDetail {
+            id: "researcher-pro".into(),
+            display_name: Some("researcher-pro".into()),
+            package: Some("researcher-pro@^1.0".into()),
+            llm_backend: Some("anthropic".into()),
+            prompt: AgentPrompt::default(),
+            requires_tools: vec![],
+        })
         .unwrap();
         let c = read(d.path()).unwrap();
         let a = c.agents.iter().find(|a| a.id == "researcher-pro").unwrap();
         assert_eq!(a.package.as_deref(), Some("researcher-pro@^1.0"));
         assert_eq!(a.llm_backend.as_deref(), Some("anthropic"));
+    }
+
+    #[test]
+    fn write_agent_roundtrips_and_preserves() {
+        let d = tempfile::tempdir().unwrap();
+        write_full_fixture(d.path());
+        let agent = AgentDetail {
+            id: "writer".into(),
+            display_name: Some("Writer".into()),
+            package: Some("critic@^0.1".into()),
+            llm_backend: Some("anthropic".into()),
+            prompt: AgentPrompt {
+                system: Some("you are a writer".into()),
+                system_file: None,
+            },
+            requires_tools: vec![RequiredToolSpec {
+                name: "web-search".into(),
+                source: "https://example.com/web.git".into(),
+                version: None,
+            }],
+        };
+        write_agent(d.path(), &agent).unwrap();
+
+        let back = read_agent(d.path(), "writer").unwrap().unwrap();
+        assert_eq!(back.display_name.as_deref(), Some("Writer"));
+        assert_eq!(back.prompt.system.as_deref(), Some("you are a writer"));
+        assert_eq!(back.requires_tools.len(), 1);
+        assert_eq!(back.requires_tools[0].name, "web-search");
+        assert!(back.requires_tools[0].version.is_none());
+        assert_eq!(read(d.path()).unwrap().name, "demo");
+        assert!(read_agent(d.path(), "researcher").unwrap().is_some());
+    }
+
+    #[test]
+    fn write_agent_toggles_prompt_and_clears_tools() {
+        let d = tempfile::tempdir().unwrap();
+        write_full_fixture(d.path());
+        let mut a = read_agent(d.path(), "researcher").unwrap().unwrap();
+        a.prompt = AgentPrompt {
+            system: None,
+            system_file: Some("agents/researcher.md".into()),
+        };
+        a.requires_tools = vec![];
+        write_agent(d.path(), &a).unwrap();
+
+        let back = read_agent(d.path(), "researcher").unwrap().unwrap();
+        assert!(back.prompt.system.is_none());
+        assert_eq!(back.prompt.system_file.as_deref(), Some("agents/researcher.md"));
+        assert!(back.requires_tools.is_empty());
+    }
+
+    #[test]
+    fn delete_agent_removes_table() {
+        let d = tempfile::tempdir().unwrap();
+        write_full_fixture(d.path());
+        assert!(delete_agent(d.path(), "researcher").unwrap());
+        assert!(read_agent(d.path(), "researcher").unwrap().is_none());
+        assert!(!delete_agent(d.path(), "researcher").unwrap());
+        assert_eq!(read(d.path()).unwrap().name, "demo");
     }
 }

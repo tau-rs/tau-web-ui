@@ -11,7 +11,7 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
 use crate::adapters::TraceDelta;
-use crate::config;
+use crate::config::{self, AgentDetail};
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
 use crate::serve_client::{RunItem, ServeClient};
 use crate::store::{RunStore, TraceReplay};
@@ -421,14 +421,32 @@ impl AppState {
     pub fn import_agent(&self, git_url: &str, llm_backend: &str) -> Result<String> {
         let id = name_from_url(git_url);
         let pkg = self.0.package_ops.install(git_url)?;
-        config::add_agent(
-            &self.0.project,
-            &id,
-            &id,
-            &format!("{}@^{}", pkg.name, pkg.version),
-            llm_backend,
-        )?;
+        let detail = AgentDetail {
+            id: id.clone(),
+            display_name: Some(id.clone()),
+            package: Some(format!("{}@^{}", pkg.name, pkg.version)),
+            llm_backend: Some(llm_backend.to_string()),
+            prompt: config::AgentPrompt::default(),
+            requires_tools: vec![],
+        };
+        config::write_agent(&self.0.project, &detail)?;
         Ok(id)
+    }
+
+    pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
+        config::list_agents(&self.0.project)
+    }
+
+    pub fn read_agent(&self, id: &str) -> Result<Option<AgentDetail>> {
+        config::read_agent(&self.0.project, id)
+    }
+
+    pub fn write_agent(&self, agent: &AgentDetail) -> Result<()> {
+        config::write_agent(&self.0.project, agent)
+    }
+
+    pub fn delete_agent(&self, id: &str) -> Result<bool> {
+        config::delete_agent(&self.0.project, id)
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<bool> {
