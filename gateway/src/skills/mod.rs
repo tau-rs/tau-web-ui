@@ -95,6 +95,10 @@ fn skills_dir(project: &Path) -> std::path::PathBuf {
 
 /// Read one local skill (None if its dir/SKILL.md is absent).
 pub fn read_local(project: &Path, name: &str) -> Result<Option<SkillDetail>> {
+    // Defense-in-depth: never join an unvalidated name into the project tree.
+    if !valid_skill_name(name) {
+        return Ok(None);
+    }
     let dir = skills_dir(project).join(name);
     let md_path = dir.join("SKILL.md");
     if !md_path.exists() {
@@ -277,8 +281,12 @@ fn deps_to_aot(deps: &[PackageDep]) -> toml_edit::ArrayOfTables {
     aot
 }
 
-/// Remove a local skill dir. Returns false if absent.
+/// Remove a local skill dir. Returns false if absent or the name is invalid.
 pub fn delete_local(project: &Path, name: &str) -> Result<bool> {
+    // Defense-in-depth: never join an unvalidated name into the project tree.
+    if !valid_skill_name(name) {
+        return Ok(false);
+    }
     let dir = skills_dir(project).join(name);
     if !dir.join("SKILL.md").exists() {
         return Ok(false);
