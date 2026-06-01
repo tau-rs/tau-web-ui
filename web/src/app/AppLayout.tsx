@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { useStore } from "../store/store";
+import { setActiveProject as setClientProject } from "../api/client";
 import { Sidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
@@ -13,6 +14,12 @@ export function AppLayout() {
   const loadHealth = useStore((s) => s.loadHealth);
   const loadProjects = useStore((s) => s.loadProjects);
   const projects = useStore((s) => s.projects);
+
+  // Set the scoped API prefix synchronously during render, BEFORE child
+  // routes render and fire their data effects (which run child-first, ahead of
+  // this component's effect). Without this, a cold load / hard refresh of a
+  // scoped page would issue the first request with an empty project id.
+  if (pid) setClientProject(pid);
 
   useEffect(() => {
     if (!pid) return;

@@ -26,6 +26,11 @@ test("launch a run and watch the live trace build", async ({ page }) => {
   await page.getByRole("button", { name: /back to runs/i }).click();
   await page.locator("table tbody tr").first().click();
   await expect(page.getByText("fs-read")).toBeVisible();
+
+  // Deep-link / hard refresh: the trace URL must re-scope on a cold load
+  // (regression guard for the active-project prefix being set on first paint).
+  await page.reload();
+  await expect(page.getByText("fs-read")).toBeVisible({ timeout: 5000 });
 });
 
 test("cancel mid-run", async ({ page }) => {
