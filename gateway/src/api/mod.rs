@@ -35,7 +35,12 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/packages/verify", post(packages::verify))
         .route("/packages/:name", delete(packages::uninstall))
         .route("/packages/:name/update", post(packages::update))
-        .route("/agents/import", post(agents::import));
+        .route("/agents", get(agents::list))
+        .route("/agents/import", post(agents::import))
+        .route(
+            "/agents/:id",
+            get(agents::get_one).put(agents::put).delete(agents::remove),
+        );
 
     Router::new()
         .route("/api/health", get(projects::health))
