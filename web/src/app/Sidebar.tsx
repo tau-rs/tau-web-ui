@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useParams } from "react-router-dom";
 import { useStore } from "../store/store";
 
 interface Item {
@@ -8,28 +8,29 @@ interface Item {
   gated?: boolean;
 }
 const GROUPS: { title: string | null; items: Item[] }[] = [
-  { title: null, items: [{ to: "/dashboard", label: "Dashboard", icon: "▦" }] },
+  { title: null, items: [{ to: "dashboard", label: "Dashboard", icon: "▦" }] },
   {
     title: "Build",
     items: [
-      { to: "/agents", label: "Agents", icon: "◆" },
-      { to: "/workflows", label: "Workflows", icon: "⛓", gated: true },
-      { to: "/tools", label: "Tools & Skills", icon: "⚒" },
-      { to: "/packages", label: "Packages", icon: "▣" },
-      { to: "/config", label: "Config & Caps", icon: "⚙", gated: true },
+      { to: "agents", label: "Agents", icon: "◆" },
+      { to: "workflows", label: "Workflows", icon: "⛓", gated: true },
+      { to: "tools", label: "Tools & Skills", icon: "⚒" },
+      { to: "packages", label: "Packages", icon: "▣" },
+      { to: "config", label: "Config & Caps", icon: "⚙", gated: true },
     ],
   },
   {
     title: "Operate",
     items: [
-      { to: "/runs", label: "Runs", icon: "≣" },
-      { to: "/ship", label: "Ship / Targets", icon: "⬡", gated: true },
-      { to: "/health", label: "Health", icon: "♥" },
+      { to: "runs", label: "Runs", icon: "≣" },
+      { to: "ship", label: "Ship / Targets", icon: "⬡", gated: true },
+      { to: "health", label: "Health", icon: "♥" },
     ],
   },
 ];
 
 export function Sidebar() {
+  const { pid } = useParams();
   const running = useStore((s) => s.runs.filter((r) => r.status === "running").length);
   return (
     <aside className="flex w-[150px] flex-col gap-0.5 border-r border-border bg-surface px-2 py-3">
@@ -47,7 +48,7 @@ export function Sidebar() {
           {group.items.map((it) => (
             <NavLink
               key={it.to}
-              to={it.to}
+              to={`/projects/${pid}/${it.to}`}
               className={({ isActive }) =>
                 `flex items-center gap-2 rounded-md px-2 py-1.5 text-xs ${
                   isActive ? "bg-accent/10 font-semibold text-accent" : "text-muted hover:text-fg"
@@ -61,7 +62,7 @@ export function Sidebar() {
                   gated
                 </span>
               )}
-              {it.to === "/runs" && running > 0 && (
+              {it.to === "runs" && running > 0 && (
                 <span className="ml-auto rounded-full bg-st-running-soft px-1.5 text-[10px] font-semibold text-st-running">
                   {running}
                 </span>
