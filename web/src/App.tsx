@@ -6,12 +6,14 @@ import { DashboardPage } from "./dashboard/DashboardPage";
 import { PackagesPage } from "./packages/PackagesPage";
 import { RunsPage } from "./runs/RunsPage";
 import { TracePage } from "./trace/TracePage";
+import { ProjectsHome } from "./projects/ProjectsHome";
 
 export function App() {
   return (
     <Routes>
-      <Route element={<AppLayout />}>
-        <Route index element={<Navigate to="/runs" replace />} />
+      <Route path="/" element={<ProjectsHome />} />
+      <Route path="/projects/:pid" element={<AppLayout />}>
+        <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route
           path="agents"
@@ -49,8 +51,8 @@ export function App() {
           path="health"
           element={<StubPage title="Health checks" subtitle="tau check & sandbox — coming soon." />}
         />
-        <Route path="*" element={<Navigate to="/runs" replace />} />
       </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
