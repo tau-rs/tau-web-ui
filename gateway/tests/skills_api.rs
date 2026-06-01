@@ -37,9 +37,18 @@ async fn skill_crud_over_http() {
 
     let list: serde_json::Value = http
         .get(format!("{base}/api/projects/{pid}/skills"))
-        .send().await.unwrap().json().await.unwrap();
-    let names: Vec<String> = list.as_array().unwrap().iter()
-        .map(|s| s["name"].as_str().unwrap().to_string()).collect();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let names: Vec<String> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s["name"].as_str().unwrap().to_string())
+        .collect();
     assert!(names.contains(&"critic".to_string()));
     assert!(names.contains(&"web-search".to_string()));
 
@@ -50,7 +59,9 @@ async fn skill_crud_over_http() {
             "name":"web-search","description":null,"version":null,"source":"x",
             "editable":false,"content":"","capabilities":[],"requires_tools":[],"requires_skills":[]
         }))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(ro.status(), reqwest::StatusCode::CONFLICT);
 
     let body = serde_json::json!({
@@ -60,21 +71,34 @@ async fn skill_crud_over_http() {
     });
     let created = http
         .put(format!("{base}/api/projects/{pid}/skills/mytool?create=1"))
-        .json(&body).send().await.unwrap();
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(created.status(), reqwest::StatusCode::OK);
 
     let dup = http
         .put(format!("{base}/api/projects/{pid}/skills/mytool?create=1"))
-        .json(&body).send().await.unwrap();
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(dup.status(), reqwest::StatusCode::CONFLICT);
 
     let one: serde_json::Value = http
         .get(format!("{base}/api/projects/{pid}/skills/mytool"))
-        .send().await.unwrap().json().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
     assert_eq!(one["capabilities"][0]["kind"], "fs.read");
 
     let del = http
         .delete(format!("{base}/api/projects/{pid}/skills/mytool"))
-        .send().await.unwrap();
+        .send()
+        .await
+        .unwrap();
     assert_eq!(del.status(), reqwest::StatusCode::NO_CONTENT);
 }

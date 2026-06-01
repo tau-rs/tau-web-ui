@@ -18,7 +18,10 @@ pub async fn get_one(
     Path((_pid, name)): Path<(String, String)>,
 ) -> Result<Json<SkillDetail>, (StatusCode, String)> {
     if !valid_skill_name(&name) {
-        return Err((StatusCode::BAD_REQUEST, format!("invalid skill name: {name}")));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("invalid skill name: {name}"),
+        ));
     }
     match state.read_skill(&name) {
         Ok(Some(s)) => Ok(Json(s)),
@@ -39,18 +42,27 @@ pub async fn put(
     Json(mut body): Json<SkillDetail>,
 ) -> Result<Json<SkillDetail>, (StatusCode, String)> {
     if !valid_skill_name(&name) {
-        return Err((StatusCode::BAD_REQUEST, format!("invalid skill name: {name}")));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("invalid skill name: {name}"),
+        ));
     }
     let existing = state
         .read_skill(&name)
         .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
     if let Some(s) = &existing {
         if !s.editable {
-            return Err((StatusCode::CONFLICT, "installed skills are read-only".into()));
+            return Err((
+                StatusCode::CONFLICT,
+                "installed skills are read-only".into(),
+            ));
         }
     }
     if q.create.as_deref() == Some("1") && existing.is_some() {
-        return Err((StatusCode::CONFLICT, format!("skill already exists: {name}")));
+        return Err((
+            StatusCode::CONFLICT,
+            format!("skill already exists: {name}"),
+        ));
     }
     body.name = name;
     state
@@ -64,12 +76,16 @@ pub async fn remove(
     Path((_pid, name)): Path<(String, String)>,
 ) -> Result<StatusCode, (StatusCode, String)> {
     if !valid_skill_name(&name) {
-        return Err((StatusCode::BAD_REQUEST, format!("invalid skill name: {name}")));
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!("invalid skill name: {name}"),
+        ));
     }
     match state.read_skill(&name) {
-        Ok(Some(s)) if !s.editable => {
-            Err((StatusCode::BAD_REQUEST, "installed skills cannot be deleted".into()))
-        }
+        Ok(Some(s)) if !s.editable => Err((
+            StatusCode::BAD_REQUEST,
+            "installed skills cannot be deleted".into(),
+        )),
         Ok(Some(_)) => match state.delete_skill(&name) {
             Ok(true) => Ok(StatusCode::NO_CONTENT),
             Ok(false) => Err((StatusCode::NOT_FOUND, format!("unknown skill: {name}"))),

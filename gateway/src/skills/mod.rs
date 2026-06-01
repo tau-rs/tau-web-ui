@@ -50,7 +50,10 @@ pub struct SkillDetail {
 
 /// `^[a-z0-9-]+$` and non-empty.
 pub fn valid_skill_name(name: &str) -> bool {
-    !name.is_empty() && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 /// Parse SKILL.md: (name, description, body). Frontmatter is the YAML-ish block
@@ -100,9 +103,13 @@ pub fn read_local(project: &Path, name: &str) -> Result<Option<SkillDetail>> {
     let md = std::fs::read_to_string(&md_path)?;
     let (md_name, description, content) = parse_skill_md(&md);
     let toml_text = std::fs::read_to_string(dir.join("tau.toml")).unwrap_or_default();
-    let doc: toml::Value = toml::from_str(&toml_text).unwrap_or(toml::Value::Table(Default::default()));
+    let doc: toml::Value =
+        toml::from_str(&toml_text).unwrap_or(toml::Value::Table(Default::default()));
 
-    let version = doc.get("version").and_then(|v| v.as_str()).map(String::from);
+    let version = doc
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let source = doc
         .get("source")
         .and_then(|v| v.as_str())
@@ -140,7 +147,10 @@ fn cap_from_value(v: &toml::Value) -> Option<Capability> {
                 continue;
             }
             if let Some(arr) = val.as_array() {
-                let list: Vec<String> = arr.iter().filter_map(|x| x.as_str().map(String::from)).collect();
+                let list: Vec<String> = arr
+                    .iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect();
                 fields.insert(k.clone(), list);
             }
         }
@@ -155,7 +165,11 @@ fn deps_from(v: Option<&toml::Value>) -> Vec<PackageDep> {
                 .filter_map(|d| {
                     Some(PackageDep {
                         name: d.get("name")?.as_str()?.to_string(),
-                        source: d.get("source").and_then(|s| s.as_str()).unwrap_or("").to_string(),
+                        source: d
+                            .get("source")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or("")
+                            .to_string(),
                         version: d.get("version").and_then(|s| s.as_str()).map(String::from),
                     })
                 })
@@ -236,10 +250,12 @@ pub fn write_local(project: &Path, detail: &SkillDetail) -> Result<()> {
     let mut skill_tbl = toml_edit::Table::new();
     skill_tbl.set_implicit(true);
     if !detail.requires_tools.is_empty() {
-        skill_tbl["requires_tools"] = toml_edit::Item::ArrayOfTables(deps_to_aot(&detail.requires_tools));
+        skill_tbl["requires_tools"] =
+            toml_edit::Item::ArrayOfTables(deps_to_aot(&detail.requires_tools));
     }
     if !detail.requires_skills.is_empty() {
-        skill_tbl["requires_skills"] = toml_edit::Item::ArrayOfTables(deps_to_aot(&detail.requires_skills));
+        skill_tbl["requires_skills"] =
+            toml_edit::Item::ArrayOfTables(deps_to_aot(&detail.requires_skills));
     }
     doc["skill"] = toml_edit::Item::Table(skill_tbl);
 
@@ -315,7 +331,12 @@ impl InstalledSkills for MockInstalled {
         self.skills.lock().unwrap().iter().map(summary_of).collect()
     }
     fn read(&self, name: &str) -> Option<SkillDetail> {
-        self.skills.lock().unwrap().iter().find(|s| s.name == name).cloned()
+        self.skills
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|s| s.name == name)
+            .cloned()
     }
     fn import(&self, git_url: &str) -> Result<String> {
         let name = crate::packages::name_from_url(git_url);
@@ -359,7 +380,11 @@ pub fn list(project: &Path, installed: &dyn InstalledSkills) -> Vec<SkillSummary
     out
 }
 
-pub fn read(project: &Path, name: &str, installed: &dyn InstalledSkills) -> Result<Option<SkillDetail>> {
+pub fn read(
+    project: &Path,
+    name: &str,
+    installed: &dyn InstalledSkills,
+) -> Result<Option<SkillDetail>> {
     if let Some(local) = read_local(project, name)? {
         return Ok(Some(local));
     }
@@ -390,7 +415,10 @@ mod tests {
         let fc = read_local(&p, "fact-checker").unwrap().unwrap();
         assert_eq!(fc.capabilities.len(), 1);
         assert_eq!(fc.capabilities[0].kind, "fs.read");
-        assert_eq!(fc.capabilities[0].fields["paths"], vec!["${SKILL_DIR}/references/**"]);
+        assert_eq!(
+            fc.capabilities[0].fields["paths"],
+            vec!["${SKILL_DIR}/references/**"]
+        );
 
         let names: Vec<String> = list_local(&p).into_iter().map(|s| s.name).collect();
         assert!(names.contains(&"critic".to_string()));
@@ -441,7 +469,10 @@ mod tests {
         assert_eq!(back.version.as_deref(), Some("0.2.0"));
         assert_eq!(back.content.trim(), "You summarise.");
         assert_eq!(back.capabilities[0].kind, "net.http");
-        assert_eq!(back.capabilities[0].fields["hosts"], vec!["api.example.com"]);
+        assert_eq!(
+            back.capabilities[0].fields["hosts"],
+            vec!["api.example.com"]
+        );
         assert_eq!(back.capabilities[0].fields["methods"], vec!["GET"]);
         assert_eq!(back.requires_tools[0].name, "web-search");
 
@@ -467,7 +498,9 @@ mod tests {
 
         let r = read(&p, "web-search", &inst).unwrap().unwrap();
         assert!(!r.editable);
-        let n = inst.import("https://github.com/acme/translator.git").unwrap();
+        let n = inst
+            .import("https://github.com/acme/translator.git")
+            .unwrap();
         assert_eq!(n, "translator");
         assert!(inst.read("translator").is_some());
     }
