@@ -88,9 +88,10 @@ async fn save_workspace_as_copies_registers_and_resets() {
     })
     .unwrap();
 
-    // save-as into a fresh target dir
-    let target = data.path().join("saved-proj");
-    let meta = reg.save_workspace_as(&target).await.unwrap();
+    // save-as by name → written under the managed root, named accordingly
+    let meta = reg.save_workspace_as("My Saved Proj").await.unwrap();
+    assert_eq!(meta.name, "My Saved Proj");
+    assert!(meta.path.contains("saved"));
 
     // the new project is registered and carries the agent
     assert!(reg.state(&meta.id).await.is_some());
@@ -101,8 +102,9 @@ async fn save_workspace_as_copies_registers_and_resets() {
     let ws2 = reg.state(WORKSPACE_ID).await.unwrap();
     assert!(ws2.read_agent("scratchy").unwrap().is_none());
 
-    // saving onto an occupied dir fails
-    assert!(reg.save_workspace_as(&target).await.is_err());
+    // saving under the same name twice fails; an empty/invalid name fails
+    assert!(reg.save_workspace_as("My Saved Proj").await.is_err());
+    assert!(reg.save_workspace_as("   ").await.is_err());
 }
 
 async fn serve(reg: ProjectRegistry) -> String {
@@ -124,10 +126,9 @@ async fn save_as_over_http() {
     let base = serve(reg).await;
     let http = reqwest::Client::new();
 
-    let target = data.path().join("http-saved");
     let created = http
         .post(format!("{base}/api/workspace/save-as"))
-        .json(&serde_json::json!({ "path": target.to_string_lossy() }))
+        .json(&serde_json::json!({ "name": "http saved" }))
         .send()
         .await
         .unwrap();
@@ -135,10 +136,10 @@ async fn save_as_over_http() {
     let meta: serde_json::Value = created.json().await.unwrap();
     assert_eq!(meta["source"]["kind"], "local");
 
-    // second save onto the same dir → 400
+    // second save under the same name → 400
     let dup = http
         .post(format!("{base}/api/workspace/save-as"))
-        .json(&serde_json::json!({ "path": target.to_string_lossy() }))
+        .json(&serde_json::json!({ "name": "http saved" }))
         .send()
         .await
         .unwrap();

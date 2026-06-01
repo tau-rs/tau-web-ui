@@ -248,20 +248,35 @@ impl ProjectRegistry {
         self.insert_entry(meta).await
     }
 
-    /// Promote the workspace to a real project at `target`: copy its authoring
-    /// files there, register it, then reset the workspace to a clean slate.
-    pub async fn save_workspace_as(&self, target: &Path) -> Result<ProjectMeta> {
+    /// Promote the workspace to a real project named `name`. The project is
+    /// written under the managed root `<data_root>/saved/<slug(name)>` — the
+    /// caller supplies a name, never a filesystem path, so there is no path
+    /// traversal / arbitrary-write surface. Copies the workspace's authoring
+    /// files, sets the project's display name, registers it, and resets the
+    /// workspace to a clean slate.
+    pub async fn save_workspace_as(&self, name: &str) -> Result<ProjectMeta> {
+        let display = name.trim();
+        if display.is_empty() {
+            bail!("project name is required");
+        }
+        let safe = slug(display);
+        if safe.is_empty() {
+            bail!("invalid project name");
+        }
         let ws_path = {
             let map = self.0.projects.read().await;
             let e = map.get(WORKSPACE_ID).context("no workspace registered")?;
             PathBuf::from(&e.meta.path)
         };
-        if target.join("tau.toml").exists() {
-            bail!("target already contains a tau.toml: {}", target.display());
+        let target = self.0.data_root.join("saved").join(&safe);
+        if target.exists() {
+            bail!("a saved project named '{safe}' already exists");
         }
-        std::fs::create_dir_all(target).with_context(|| format!("create {}", target.display()))?;
-        copy_dir_recursive(&ws_path, target)?;
-        let meta = self.add_local(target).await?;
+        std::fs::create_dir_all(&target).with_context(|| format!("create {}", target.display()))?;
+        copy_dir_recursive(&ws_path, &target)?;
+        // Stamp the chosen display name into the copied project.
+        crate::config::write_project(&target, display, None)?;
+        let meta = self.add_local(&target).await?;
         self.reset_workspace(&ws_path).await?;
         Ok(meta)
     }

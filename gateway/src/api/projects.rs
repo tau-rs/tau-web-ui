@@ -71,14 +71,14 @@ pub async fn remove(
 
 #[derive(Deserialize)]
 pub struct SaveAsBody {
-    pub path: String,
+    pub name: String,
 }
 
 pub async fn save_as(
     State(reg): State<ProjectRegistry>,
     Json(b): Json<SaveAsBody>,
 ) -> Result<(StatusCode, Json<ProjectMeta>), (StatusCode, String)> {
-    reg.save_workspace_as(std::path::Path::new(&b.path))
+    reg.save_workspace_as(&b.name)
         .await
         .map(|m| (StatusCode::CREATED, Json(m)))
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))
