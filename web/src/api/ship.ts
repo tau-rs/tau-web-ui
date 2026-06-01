@@ -12,6 +12,6 @@ export const listBundles = () => fetch(scopedPath("/bundles")).then(json<Bundle[
 export const build = (target: string) =>
   fetch(scopedPath("/build"), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ target }),
   }).then(json<Bundle>);
