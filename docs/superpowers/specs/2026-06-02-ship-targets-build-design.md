@@ -86,7 +86,7 @@ Mock-first behind a seam, mirroring `ToolsSource`/`PluginsSource` but with inter
 - **`MockShip`**: seeds four targets — `host` (substrate `native`, status `ready`, gate `None`); `wasm` (`wasm32`, gated, `γ`); `c-abi` (`cdylib`, gated, `γ`); `mcu` (`embedded`, gated, `γ`). Holds `Mutex<Vec<Bundle>>` seeded with two bundles (a `clean` recent one and a `drifted` older one). `build("host")` synthesizes a `Bundle` (artifact `<project>.tau` — `demo.tau` for the demo fixture; four `ok` steps with plausible durations; `drift: "clean"`; a fresh `built_at`), pushes it to the **front** of the vec, and returns it. `build` on a gated target → `Err(BuildError::Gated)`; on an unknown target → `Err(BuildError::UnknownTarget)`.
 - **`CliShip`** (seam, not exercised in v1): future real path (`tau targets`, `tau build --target … --json`). `list_targets`/`list_bundles` return empty; `build` returns `Err(BuildError::UnknownTarget)` with a "not implemented" message.
 
-Selection mirrors `AppState::new`'s `is_mock` check (as `tools_source`/`plugins_source` do). `built_at` is a display-only string: the two seed bundles use static labels (e.g. `"2m ago"`, `"1d ago"`); `build` stamps the current time via the gateway's existing timestamp helper (`crate::state::now()`, already used for run `started_at`/`ended_at`). No test asserts on `built_at`'s exact value, so the real clock introduces no nondeterminism.
+Selection mirrors `AppState::new`'s `is_mock` check (as `tools_source`/`plugins_source` do). `built_at` is a display-only **relative label** for a consistent column: the two seed bundles use `"2m ago"` / `"1d ago"`; `build` stamps `"just now"`. No real clock — avoids RFC3339/relative mixing in the table and keeps tests deterministic.
 
 ### 3.2 `AppState` wrapper + API
 
