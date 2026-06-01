@@ -1,39 +1,32 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { useStore } from "../store/store";
 
-beforeEach(() => useStore.setState({ runs: [] }));
+beforeEach(() => useStore.setState({ runs: [], activeProjectId: "demo" }));
 
-function renderAt(pid = "demo") {
+function renderSidebar() {
   render(
-    <MemoryRouter initialEntries={[`/projects/${pid}/runs`]}>
-      <Routes>
-        <Route path="/projects/:pid/*" element={<Sidebar />} />
-      </Routes>
+    <MemoryRouter>
+      <Sidebar />
     </MemoryRouter>,
   );
 }
 
 describe("Sidebar", () => {
-  it("renders the Build and Operate group labels", () => {
-    renderAt();
-    expect(screen.getByText("Build")).toBeInTheDocument();
-    expect(screen.getByText("Operate")).toBeInTheDocument();
+  it("always shows a Projects item linking to /", () => {
+    renderSidebar();
+    expect(screen.getByRole("link", { name: /projects/i })).toHaveAttribute("href", "/");
   });
 
-  it("renders all surface links scoped to the active project", () => {
-    renderAt();
+  it("renders surface links scoped to the active project", () => {
+    renderSidebar();
     const expected: [RegExp, string][] = [
       [/dashboard/i, "/projects/demo/dashboard"],
       [/agents/i, "/projects/demo/agents"],
-      [/workflows/i, "/projects/demo/workflows"],
-      [/tools/i, "/projects/demo/tools"],
       [/packages/i, "/projects/demo/packages"],
-      [/config/i, "/projects/demo/config"],
       [/runs/i, "/projects/demo/runs"],
-      [/ship/i, "/projects/demo/ship"],
       [/health/i, "/projects/demo/health"],
     ];
     for (const [name, href] of expected) {
@@ -41,16 +34,20 @@ describe("Sidebar", () => {
     }
   });
 
-  it("badges the partially-gated areas (Workflows, Config, Ship)", () => {
-    renderAt();
-    expect(screen.getAllByText(/gated/i)).toHaveLength(3);
+  it("greys (disables) the scoped groups when no project is active", () => {
+    useStore.setState({ runs: [], activeProjectId: "" });
+    renderSidebar();
+    expect(screen.getByRole("link", { name: /projects/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /dashboard/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Dashboard")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("shows a running-count badge on Runs when runs are in flight", () => {
+  it("shows the running badge inside a project", () => {
     useStore.setState({
-      runs: [{ id: "a", status: "running" } as never, { id: "b", status: "completed" } as never],
+      runs: [{ id: "a", status: "running" } as never],
+      activeProjectId: "demo",
     });
-    renderAt();
+    renderSidebar();
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 });
