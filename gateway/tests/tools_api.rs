@@ -34,14 +34,13 @@ async fn tools_list_over_http() {
     let base = serve(reg).await;
     let http = reqwest::Client::new();
 
-    let list: serde_json::Value = http
+    let resp = http
         .get(format!("{base}/api/projects/{}/tools", meta.id))
         .send()
         .await
-        .unwrap()
-        .json()
-        .await
         .unwrap();
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    let list: serde_json::Value = resp.json().await.unwrap();
     let arr = list.as_array().unwrap();
     assert_eq!(arr.len(), 3);
     let fsr = arr.iter().find(|t| t["name"] == "fs-read").unwrap();
