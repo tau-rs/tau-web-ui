@@ -4,6 +4,7 @@ pub mod api;
 pub mod config;
 pub mod packages;
 pub mod projects;
+pub mod skills;
 pub mod serve_client;
 pub mod state;
 pub mod store;
