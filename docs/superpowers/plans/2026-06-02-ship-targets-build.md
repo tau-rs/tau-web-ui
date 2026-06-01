@@ -652,9 +652,11 @@ import type { Bundle } from "../types/Bundle";
 import type { BuildStep } from "../types/BuildStep";
 import { listTargets, listBundles, build } from "../api/ship";
 
-function humanSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
+function humanSize(bytes: number | bigint): string {
+  // ts-rs exports the Rust `u64` `size_bytes` as `bigint`; coerce to number.
+  const n = Number(bytes);
+  if (n < 1024) return `${n} B`;
+  const kb = n / 1024;
   if (kb < 1024) return `${kb.toFixed(1)} KB`;
   return `${(kb / 1024).toFixed(1)} MB`;
 }
