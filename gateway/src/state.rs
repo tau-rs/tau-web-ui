@@ -13,6 +13,7 @@ use crate::adapters::serve::ServeAdapter;
 use crate::adapters::TraceDelta;
 use crate::config::{self, AgentDetail};
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
+use crate::skills::{self, InstalledSkills, SkillDetail, SkillSummary};
 use crate::serve_client::{RunItem, ServeClient};
 use crate::store::{RunStore, TraceReplay};
 use crate::trace::*;
@@ -28,6 +29,7 @@ pub struct Inner {
     pub store: RunStore,
     workflow_runner: Box<dyn WorkflowRunner>,
     package_ops: Box<dyn PackageOps>,
+    installed_skills: Box<dyn InstalledSkills>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -58,6 +60,11 @@ impl AppState {
         } else {
             Box::new(CliOps::new(bin.clone(), project.clone()))
         };
+        let installed_skills: Box<dyn InstalledSkills> = if is_mock {
+            Box::new(skills::MockInstalled::new())
+        } else {
+            Box::new(skills::CliInstalled)
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -65,6 +72,7 @@ impl AppState {
             store,
             workflow_runner,
             package_ops,
+            installed_skills,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -431,6 +439,26 @@ impl AppState {
         };
         config::write_agent(&self.0.project, &detail)?;
         Ok(id)
+    }
+
+    pub fn list_skills(&self) -> Vec<SkillSummary> {
+        skills::list(&self.0.project, self.0.installed_skills.as_ref())
+    }
+
+    pub fn read_skill(&self, name: &str) -> anyhow::Result<Option<SkillDetail>> {
+        skills::read(&self.0.project, name, self.0.installed_skills.as_ref())
+    }
+
+    pub fn write_skill(&self, detail: &SkillDetail) -> anyhow::Result<()> {
+        skills::write_local(&self.0.project, detail)
+    }
+
+    pub fn delete_skill(&self, name: &str) -> anyhow::Result<bool> {
+        skills::delete_local(&self.0.project, name)
+    }
+
+    pub fn import_skill(&self, git_url: &str) -> anyhow::Result<String> {
+        self.0.installed_skills.import(git_url)
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
