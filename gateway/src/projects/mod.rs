@@ -203,6 +203,37 @@ impl ProjectRegistry {
         Ok(meta)
     }
 
+    /// Clone `url` into `<data_root>/workspaces/<slug>/`, validate, and register.
+    pub async fn add_git(&self, url: &str) -> Result<ProjectMeta> {
+        let base = crate::packages::name_from_url(url);
+        let id = self.unique_id(&base).await;
+        let dest = self.0.data_root.join("workspaces").join(&id);
+        if dest.exists() {
+            bail!("workspace already exists: {}", dest.display());
+        }
+        std::fs::create_dir_all(dest.parent().unwrap()).ok();
+        self.cloner().clone(url, &dest)?;
+        let name = Self::project_name(&dest)?;
+        let meta = ProjectMeta {
+            id,
+            name,
+            path: dest.to_string_lossy().to_string(),
+            source: ProjectSource::Git { url: url.to_string() },
+        };
+        self.insert_entry(meta.clone()).await?;
+        self.write_manifest().await?;
+        Ok(meta)
+    }
+
+    /// Unregister a project (non-destructive: leaves run history + workspace on disk).
+    pub async fn remove(&self, id: &str) -> Result<bool> {
+        let removed = self.0.projects.write().await.shift_remove(id).is_some();
+        if removed {
+            self.write_manifest().await?;
+        }
+        Ok(removed)
+    }
+
     async fn find_by_path(&self, abs: &Path) -> Option<ProjectMeta> {
         let want = abs.to_string_lossy().to_string();
         self.0

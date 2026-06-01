@@ -59,3 +59,26 @@ async fn add_local_rejects_dir_without_tau_toml() {
         .unwrap();
     assert!(reg.add_local(empty.path()).await.is_err());
 }
+
+#[tokio::test]
+async fn add_git_clones_via_mock_then_remove() {
+    let data = tempfile::tempdir().unwrap();
+    let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
+        .await
+        .unwrap();
+    // bin() is fake-tau-serve -> MockCloner seeds a tau.toml, no network.
+    let meta = reg
+        .add_git("https://github.com/acme/cool-bot.git")
+        .await
+        .unwrap();
+    assert_eq!(meta.id, "cool-bot");
+    match meta.source {
+        ProjectSource::Git { ref url } => assert!(url.contains("cool-bot")),
+        _ => panic!("expected Git source"),
+    }
+    assert!(reg.state("cool-bot").await.is_some());
+
+    assert!(reg.remove("cool-bot").await.unwrap());
+    assert!(reg.state("cool-bot").await.is_none());
+    assert!(!reg.remove("cool-bot").await.unwrap()); // already gone
+}
