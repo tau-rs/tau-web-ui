@@ -101,3 +101,43 @@ async fn save_workspace_as_copies_registers_and_resets() {
     // saving onto an occupied dir fails
     assert!(reg.save_workspace_as(&target).await.is_err());
 }
+
+async fn serve(reg: ProjectRegistry) -> String {
+    let app = tau_gateway::api::router(reg);
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    format!("http://{addr}")
+}
+
+#[tokio::test]
+async fn save_as_over_http() {
+    let data = tempfile::tempdir().unwrap();
+    let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
+        .await
+        .unwrap();
+    let base = serve(reg).await;
+    let http = reqwest::Client::new();
+
+    let target = data.path().join("http-saved");
+    let created = http
+        .post(format!("{base}/api/workspace/save-as"))
+        .json(&serde_json::json!({ "path": target.to_string_lossy() }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(created.status(), reqwest::StatusCode::CREATED);
+    let meta: serde_json::Value = created.json().await.unwrap();
+    assert_eq!(meta["source"]["kind"], "local");
+
+    // second save onto the same dir → 400
+    let dup = http
+        .post(format!("{base}/api/workspace/save-as"))
+        .json(&serde_json::json!({ "path": target.to_string_lossy() }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(dup.status(), reqwest::StatusCode::BAD_REQUEST);
+}
