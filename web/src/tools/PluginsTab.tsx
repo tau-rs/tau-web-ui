@@ -51,7 +51,8 @@ export function PluginsTab() {
 }
 
 function PortBadge({ port }: { port: string }) {
-  const tone = port === "LlmBackend" ? "bg-blue-100 text-blue-800" : "bg-accent/10 text-accent";
+  const tone =
+    port === "LlmBackend" ? "bg-st-running/15 text-st-running" : "bg-accent/10 text-accent";
   return (
     <span className={`rounded-full px-2 text-[9px] font-semibold ${tone}`}>{port}</span>
   );
@@ -111,7 +112,7 @@ function FrameRow({ frame }: { frame: ProtocolFrame }) {
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-baseline gap-2 py-1 text-left"
       >
-        <span className={`w-3 shrink-0 font-bold ${out ? "text-sky-600" : "text-emerald-600"}`}>
+        <span className={`w-3 shrink-0 font-bold ${out ? "text-st-running" : "text-st-ok"}`}>
           {out ? "→" : "←"}
         </span>
         <span className="w-32 shrink-0 font-mono font-semibold text-accent">{frame.method}</span>
