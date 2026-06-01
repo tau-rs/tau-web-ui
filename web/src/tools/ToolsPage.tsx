@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { SkillsIndex } from "./SkillsIndex";
 import { ToolsTab } from "./ToolsTab";
+import { PluginsTab } from "./PluginsTab";
 
 export function ToolsPage() {
-  const [tab, setTab] = useState<"skills" | "tools">("skills");
+  const [tab, setTab] = useState<"skills" | "tools" | "plugins">("skills");
   const chip = (active: boolean) =>
     `rounded-md px-3 py-1 text-xs font-semibold ${
       active ? "bg-accent text-accent-fg" : "text-muted hover:text-fg"
@@ -19,18 +20,15 @@ export function ToolsPage() {
           <button className={chip(tab === "tools")} onClick={() => setTab("tools")}>
             Tools
           </button>
-          <span
-            aria-disabled="true"
-            className="cursor-not-allowed rounded-md px-3 py-1 text-xs font-semibold text-muted opacity-50"
-          >
+          <button className={chip(tab === "plugins")} onClick={() => setTab("plugins")}>
             Plugins{" "}
             <span className="ml-1 rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">
-              soon
+              gated
             </span>
-          </span>
+          </button>
         </div>
       </div>
-      {tab === "skills" ? <SkillsIndex /> : <ToolsTab />}
+      {tab === "skills" ? <SkillsIndex /> : tab === "tools" ? <ToolsTab /> : <PluginsTab />}
     </div>
   );
 }

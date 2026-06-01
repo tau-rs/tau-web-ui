@@ -20,7 +20,7 @@ function renderAt() {
 }
 
 describe("ToolsPage tabs", () => {
-  it("defaults to Skills, switches to Tools, Plugins is disabled", async () => {
+  it("switches Skills → Tools → Plugins (gated tab)", async () => {
     const user = userEvent.setup();
     renderAt();
     // Skills tab shows the import-skill control
@@ -31,10 +31,8 @@ describe("ToolsPage tabs", () => {
     expect(screen.getByText("provides")).toBeInTheDocument();
     expect(screen.queryByLabelText("import skill git url")).not.toBeInTheDocument();
 
-    // Plugins is a disabled element, not a switchable tab
-    expect(screen.getByText(/plugins/i).closest("[aria-disabled]")).toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
+    // Plugins is now a real, navigable tab → renders the gated PluginsTab
+    await user.click(screen.getByRole("button", { name: /plugins/i }));
+    expect(screen.getByText(/mock data/i)).toBeInTheDocument();
   });
 });
