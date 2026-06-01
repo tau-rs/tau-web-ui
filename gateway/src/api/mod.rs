@@ -9,6 +9,7 @@ pub mod plugins;
 pub mod projects;
 pub mod runs;
 pub mod scope;
+pub mod ship;
 pub mod skills;
 pub mod tools;
 pub mod workflows;
@@ -51,7 +52,10 @@ pub fn router(reg: ProjectRegistry) -> Router {
             get(skills::get_one).put(skills::put).delete(skills::remove),
         )
         .route("/tools", get(tools::list))
-        .route("/plugins", get(plugins::list));
+        .route("/plugins", get(plugins::list))
+        .route("/targets", get(ship::targets))
+        .route("/bundles", get(ship::bundles))
+        .route("/build", post(ship::build));
 
     Router::new()
         .route("/api/health", get(projects::health))
