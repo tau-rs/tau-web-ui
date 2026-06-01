@@ -250,6 +250,10 @@ mod tests {
         assert_eq!(fsr.describe.port, "Tool");
         assert_eq!(fsr.kind, "rust-cargo");
         assert_eq!(fsr.transcript.len(), 6);
+        // describe-result frame (index 3) is the serialized typed describe — guards
+        // against drift between PluginDescribe and its wire form.
+        assert_eq!(fsr.transcript[3].method, "result");
+        assert_eq!(fsr.transcript[3].payload["port"], json!("Tool"));
         let last = fsr.transcript.last().unwrap();
         assert_eq!(last.method, "result");
         assert_eq!(last.payload["ok"], json!(true));
