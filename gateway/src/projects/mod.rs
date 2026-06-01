@@ -14,6 +14,7 @@ use ts_rs::TS;
 use crate::projects::cloner::{GitCloner, MockCloner, ProjectCloner};
 use crate::state::AppState;
 use crate::store::RunStore;
+use crate::trace::{Run, RunStatus};
 
 pub mod cloner;
 
@@ -34,6 +35,26 @@ pub struct ProjectMeta {
     pub name: String,
     pub path: String,
     pub source: ProjectSource,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ProjectSummary {
+    pub runs: u32,
+    pub running: u32,
+    pub failed_24h: u32,
+    pub success_rate: f32,
+    pub tokens: u64,
+    pub last_activity: Option<String>,
+    pub agents: u32,
+    pub engine_ok: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ProjectListItem {
+    pub meta: ProjectMeta,
+    pub summary: ProjectSummary,
 }
 
 /// Lowercase, collapse non-[a-z0-9-] runs to a single '-', trim leading/trailing '-'.
@@ -253,6 +274,81 @@ impl ProjectRegistry {
     /// All project metas in insertion order.
     pub async fn metas(&self) -> Vec<ProjectMeta> {
         self.0.projects.read().await.values().map(|e| e.meta.clone()).collect()
+    }
+
+    /// Compute a summary per project from persisted runs + config. `now` is an
+    /// RFC3339 timestamp used for the 24h failure window (injected for testing).
+    pub async fn list_summaries(&self, now: &str) -> Vec<ProjectListItem> {
+        let now_dt = chrono::DateTime::parse_from_rfc3339(now).ok();
+        let mut items = vec![];
+        let ids: Vec<ProjectId> = self.0.projects.read().await.keys().cloned().collect();
+        for id in ids {
+            let entry = {
+                let map = self.0.projects.read().await;
+                map.get(&id).map(|e| (e.meta.clone(), e.state.clone()))
+            };
+            // Skip if the project was removed between the id snapshot and here.
+            let Some((meta, state)) = entry else { continue };
+            let runs = state.list_runs().await;
+            let summary = summarize(&runs, now_dt, &state).await;
+            items.push(ProjectListItem { meta, summary });
+        }
+        items
+    }
+}
+
+async fn summarize(
+    runs: &[Run],
+    now: Option<chrono::DateTime<chrono::FixedOffset>>,
+    state: &AppState,
+) -> ProjectSummary {
+    let total = runs.len() as u32;
+    let running = runs.iter().filter(|r| r.status == RunStatus::Running).count() as u32;
+    let terminal: Vec<&Run> = runs
+        .iter()
+        .filter(|r| r.status != RunStatus::Running)
+        .collect();
+    let completed = terminal
+        .iter()
+        .filter(|r| r.status == RunStatus::Completed)
+        .count();
+    let success_rate = if terminal.is_empty() {
+        0.0
+    } else {
+        completed as f32 / terminal.len() as f32
+    };
+    let failed_24h = runs
+        .iter()
+        .filter(|r| r.status == RunStatus::Failed)
+        .filter(|r| within_24h(r.ended_at.as_deref(), now))
+        .count() as u32;
+    let tokens: u64 = runs
+        .iter()
+        .filter_map(|r| r.token_usage.as_ref())
+        .map(|u| u.input_tokens as u64 + u.output_tokens as u64)
+        .sum();
+    let last_activity = runs.iter().map(|r| r.started_at.clone()).max();
+    let agents = state.config_read().map(|c| c.agents.len() as u32).unwrap_or(0);
+    let engine_ok = state.engine_alive_cached().await;
+    ProjectSummary {
+        runs: total,
+        running,
+        failed_24h,
+        success_rate,
+        tokens,
+        last_activity,
+        agents,
+        engine_ok,
+    }
+}
+
+fn within_24h(
+    ended_at: Option<&str>,
+    now: Option<chrono::DateTime<chrono::FixedOffset>>,
+) -> bool {
+    match (ended_at.and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok()), now) {
+        (Some(ended), Some(now)) => (now - ended).num_hours() < 24 && now >= ended,
+        _ => false,
     }
 }
 

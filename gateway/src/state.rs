@@ -438,6 +438,15 @@ impl AppState {
             None => Ok(false),
         }
     }
+
+    /// Engine health WITHOUT spawning a child: true if no child started yet
+    /// (nothing has failed) or the existing child is alive.
+    pub async fn engine_alive_cached(&self) -> bool {
+        match self.0.client.lock().await.as_ref() {
+            Some(c) => c.is_alive().await,
+            None => true,
+        }
+    }
 }
 
 pub fn now() -> String {

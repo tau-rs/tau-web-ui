@@ -82,3 +82,31 @@ async fn add_git_clones_via_mock_then_remove() {
     assert!(reg.state("cool-bot").await.is_none());
     assert!(!reg.remove("cool-bot").await.unwrap()); // already gone
 }
+
+#[tokio::test]
+async fn summaries_reflect_runs() {
+    use tau_gateway::trace::RunStatus;
+    let data = tempfile::tempdir().unwrap();
+    let proj = make_project("demo");
+    let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
+        .await
+        .unwrap();
+    reg.add_local(proj.path()).await.unwrap();
+    let state = reg.state("demo").await.unwrap();
+
+    let id = state.launch("greeter".into(), "hi".into()).await.unwrap();
+    for _ in 0..200 {
+        if let Some(r) = state.get_run(&id).await {
+            if r.status != RunStatus::Running {
+                break;
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+
+    let items = reg.list_summaries("2999-01-01T00:00:00Z").await;
+    let demo = items.iter().find(|i| i.meta.id == "demo").unwrap();
+    assert_eq!(demo.summary.runs, 1);
+    assert!(demo.summary.agents >= 1);
+    assert!(demo.summary.success_rate > 0.0);
+}
