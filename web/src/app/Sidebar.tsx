@@ -23,7 +23,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     title: "Operate",
     items: [
       { to: "runs", label: "Runs", icon: "≣" },
-      { to: "ship", label: "Ship / Targets", icon: "⬡", gated: true },
+      { to: "ship", label: "Ship / Targets", icon: "⬡" },
       { to: "health", label: "Health", icon: "♥" },
     ],
   },

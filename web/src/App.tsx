@@ -12,6 +12,7 @@ import { AgentsIndexPage } from "./agents/AgentsIndexPage";
 import { AgentEditorPage } from "./agents/AgentEditorPage";
 import { ToolsPage } from "./tools/ToolsPage";
 import { SkillEditorPage } from "./tools/SkillEditorPage";
+import { ShipPage } from "./ship/ShipPage";
 
 export function App() {
   return (
@@ -41,16 +42,7 @@ export function App() {
           <Route path="config" element={<ConfigPage />} />
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:id" element={<TracePage />} />
-          <Route
-            path="ship"
-            element={
-              <StubPage
-                title="Ship / Targets"
-                subtitle="Targets, build & verify — coming soon."
-                gated="β.6 (conformance)"
-              />
-            }
-          />
+          <Route path="ship" element={<ShipPage />} />
           <Route
             path="health"
             element={
