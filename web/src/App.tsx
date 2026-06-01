@@ -10,6 +10,8 @@ import { TracePage } from "./trace/TracePage";
 import { ProjectsHome } from "./projects/ProjectsHome";
 import { AgentsIndexPage } from "./agents/AgentsIndexPage";
 import { AgentEditorPage } from "./agents/AgentEditorPage";
+import { ToolsPage } from "./tools/ToolsPage";
+import { SkillEditorPage } from "./tools/SkillEditorPage";
 
 export function App() {
   return (
@@ -32,10 +34,9 @@ export function App() {
               />
             }
           />
-          <Route
-            path="tools"
-            element={<StubPage title="Tools & Skills" subtitle="Skills & plugins — coming soon." />}
-          />
+          <Route path="tools" element={<ToolsPage />} />
+          <Route path="tools/skills/new" element={<SkillEditorPage />} />
+          <Route path="tools/skills/:name" element={<SkillEditorPage />} />
           <Route path="packages" element={<PackagesPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="runs" element={<RunsPage />} />
