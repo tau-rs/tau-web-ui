@@ -15,14 +15,28 @@ function setup() {
     project: null,
     activeProjectId: "demo",
     projects: [
-      { meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } }, summary: {} } as never,
-      { meta: { id: "acme-bot", name: "acme-bot", path: "/q", source: { kind: "local" } }, summary: {} } as never,
+      {
+        meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } },
+        summary: {},
+      } as never,
+      {
+        meta: { id: "acme-bot", name: "acme-bot", path: "/q", source: { kind: "local" } },
+        summary: {},
+      } as never,
     ],
   });
   render(
     <MemoryRouter initialEntries={["/projects/demo/runs"]}>
       <Routes>
-        <Route path="/projects/:pid/*" element={<><Navbar /><Probe /></>} />
+        <Route
+          path="/projects/:pid/*"
+          element={
+            <>
+              <Navbar />
+              <Probe />
+            </>
+          }
+        />
         <Route path="/" element={<Probe />} />
       </Routes>
     </MemoryRouter>,

@@ -121,3 +121,39 @@ test("create, edit, and delete an agent", async ({ page }) => {
   await page.getByRole("button", { name: "Delete" }).click();
   await expect(page.getByRole("link", { name: "e2e-bot" })).toHaveCount(0);
 });
+
+test("nav shell on the overview + workspace save-as", async ({ page }) => {
+  await page.goto("/");
+  // shell is present on the overview; scoped groups are greyed (Dashboard is not a link)
+  await expect(page.getByRole("link", { name: /projects/i }).first()).toBeVisible({
+    timeout: 5000,
+  });
+  await expect(page.getByRole("link", { name: /^dashboard$/i })).toHaveCount(0);
+
+  // the Unsaved card is present; enter the workspace
+  await expect(page.getByText(/working environment/i)).toBeVisible();
+  await page.getByText(/working environment/i).click();
+  await expect(page).toHaveURL(/\/projects\/workspace\/dashboard/);
+  // inside the workspace the scoped nav is live
+  await expect(page.getByRole("link", { name: /^agents$/i })).toBeVisible({ timeout: 5000 });
+
+  // author an agent in the workspace
+  await page.goto("/projects/workspace/agents/new");
+  await page.getByLabel("agent id").fill("ws-bot");
+  await page.getByLabel("system prompt").fill("hi");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+
+  // save the workspace as a real project from the navbar affordance
+  await page.getByLabel("save as project").click();
+  await page.getByLabel("project name").fill("e2e saved " + Date.now());
+  // Use last() because the regex also matches the trigger button that opened this form
+  await page
+    .getByRole("button", { name: /save as project/i })
+    .last()
+    .click();
+
+  // we land in the new project, and it has the agent
+  await expect(page).toHaveURL(/\/projects\/[^/]+\/dashboard/);
+  await page.goto(page.url().replace("/dashboard", "/agents"));
+  await expect(page.getByRole("link", { name: "ws-bot" })).toBeVisible({ timeout: 5000 });
+});

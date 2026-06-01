@@ -20,8 +20,14 @@ function summary() {
 beforeEach(() => {
   useStore.setState({
     projects: [
-      { meta: { id: "workspace", name: "workspace", path: "/w", source: { kind: "workspace" } }, summary: summary() },
-      { meta: { id: "demo", name: "demo", path: "/p/demo", source: { kind: "local" } }, summary: summary() },
+      {
+        meta: { id: "workspace", name: "workspace", path: "/w", source: { kind: "workspace" } },
+        summary: summary(),
+      },
+      {
+        meta: { id: "demo", name: "demo", path: "/p/demo", source: { kind: "local" } },
+        summary: summary(),
+      },
     ] as never,
   });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
