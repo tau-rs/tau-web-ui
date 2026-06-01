@@ -20,16 +20,25 @@ export interface Trace {
   events: Event[];
 }
 
+let activeProject = "";
+/** Set the project id every scoped request is prefixed with. */
+export function setActiveProject(pid: string): void {
+  activeProject = pid;
+}
+function scoped(path: string): string {
+  return `/api/projects/${activeProject}${path}`;
+}
+
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json() as Promise<T>;
 }
 
-export const getHealth = () => fetch("/api/health").then(json<Health>);
-export const getProject = () => fetch("/api/project").then(json<Project>);
+export const getHealth = () => fetch(scoped("/health")).then(json<Health>);
+export const getProject = () => fetch(scoped("/project")).then(json<Project>);
 
 export function launchRun(agent_id: string, prompt: string): Promise<string> {
-  return fetch("/api/runs", {
+  return fetch(scoped("/runs"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ agent_id, prompt }),
@@ -43,16 +52,16 @@ export function listRuns(filters: { status?: string; agent?: string } = {}): Pro
   if (filters.status) q.set("status", filters.status);
   if (filters.agent) q.set("agent", filters.agent);
   const qs = q.toString();
-  return fetch(`/api/runs${qs ? `?${qs}` : ""}`).then(json<Run[]>);
+  return fetch(scoped(`/runs${qs ? `?${qs}` : ""}`)).then(json<Run[]>);
 }
 
 export const getWorkflows = () =>
-  fetch("/api/workflows")
+  fetch(scoped("/workflows"))
     .then(json<{ workflows: string[] }>)
     .then((r) => r.workflows);
 
 export function launchWorkflow(workflow: string, input: string): Promise<string> {
-  return fetch("/api/workflows/run", {
+  return fetch(scoped("/workflows/run"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ workflow, input }),
@@ -61,16 +70,16 @@ export function launchWorkflow(workflow: string, input: string): Promise<string>
     .then((r) => r.run_id);
 }
 
-export const getTrace = (id: string) => fetch(`/api/runs/${id}`).then(json<Trace>);
+export const getTrace = (id: string) => fetch(scoped(`/runs/${id}`)).then(json<Trace>);
 export const cancelRun = (id: string) =>
-  fetch(`/api/runs/${id}/cancel`, { method: "POST" })
+  fetch(scoped(`/runs/${id}/cancel`), { method: "POST" })
     .then(json<{ cancelled: boolean }>)
     .then((r) => r.cancelled);
 
-/** Open the live WS for a run. Caller handles each typed WsMessage. */
+/** Open the live WS for a run under the active project. */
 export function openRunSocket(id: string, onMessage: (m: WsMessage) => void): WebSocket {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/api/runs/${id}/events`);
+  const ws = new WebSocket(`${proto}://${location.host}${scoped(`/runs/${id}/events`)}`);
   ws.onmessage = (ev) => {
     try {
       onMessage(JSON.parse(ev.data) as WsMessage);
@@ -79,4 +88,9 @@ export function openRunSocket(id: string, onMessage: (m: WsMessage) => void): We
     }
   };
   return ws;
+}
+
+/** Build a scoped path for the active project (used by other api modules). */
+export function scopedPath(path: string): string {
+  return scoped(path);
 }

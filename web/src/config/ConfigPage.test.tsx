@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ConfigPage } from "./ConfigPage";
+import { setActiveProject } from "../api/client";
 
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  setActiveProject("demo");
+});
 
 function mockFetch(handler: (url: string, init?: RequestInit) => unknown) {
   vi.stubGlobal(
@@ -18,7 +22,7 @@ describe("ConfigPage", () => {
     const calls: { url: string; body?: string }[] = [];
     mockFetch((url, init) => {
       calls.push({ url, body: init?.body as string });
-      if (url.endsWith("/api/project/config") && (!init || init.method !== "PUT"))
+      if (url.includes("/project/config") && (!init || init.method !== "PUT"))
         return {
           name: "demo",
           description: "d",
@@ -35,7 +39,7 @@ describe("ConfigPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() =>
       expect(
-        calls.some((c) => c.url.endsWith("/api/project/config") && c.body?.includes("renamed")),
+        calls.some((c) => c.url.includes("/project/config") && c.body?.includes("renamed")),
       ).toBe(true),
     );
   });

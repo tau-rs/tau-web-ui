@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PackagesPage } from "./PackagesPage";
+import { setActiveProject } from "../api/client";
 
-beforeEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.restoreAllMocks();
+  setActiveProject("demo");
+});
 
 describe("PackagesPage", () => {
   it("lists packages and installs a new one", async () => {
@@ -12,9 +16,9 @@ describe("PackagesPage", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string, init?: RequestInit) => {
-        if (url.endsWith("/api/packages") && (!init || init.method !== "POST"))
+        if (url.includes("/packages") && !url.includes("/install") && (!init || init.method !== "POST"))
           return Promise.resolve({ ok: true, json: async () => ({ packages: list }) });
-        if (url.endsWith("/api/packages/install")) {
+        if (url.includes("/packages/install")) {
           list = [
             ...list,
             {
