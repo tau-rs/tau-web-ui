@@ -54,3 +54,13 @@ async fn user_project_named_workspace_dedupes() {
     let meta = reg.add_local(proj.path()).await.unwrap();
     assert_eq!(meta.id, "workspace-2");
 }
+
+#[tokio::test]
+async fn workspace_cannot_be_removed() {
+    let data = tempfile::tempdir().unwrap();
+    let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
+        .await
+        .unwrap();
+    assert!(reg.remove(WORKSPACE_ID).await.is_err());
+    assert!(reg.state(WORKSPACE_ID).await.is_some()); // still registered
+}

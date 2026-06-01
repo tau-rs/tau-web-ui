@@ -293,8 +293,11 @@ impl ProjectRegistry {
         Ok(meta)
     }
 
-    /// Unregister a project (non-destructive: leaves run history + workspace on disk).
+    /// Unregister a project (non-destructive). The built-in workspace cannot be removed.
     pub async fn remove(&self, id: &str) -> Result<bool> {
+        if id == WORKSPACE_ID {
+            bail!("the workspace cannot be removed");
+        }
         let removed = self.0.projects.write().await.shift_remove(id).is_some();
         if removed {
             self.write_manifest().await?;
