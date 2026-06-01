@@ -55,7 +55,9 @@ async fn global_list_and_scoped_404() {
         .find(|p| p["meta"]["id"] == "demo")
         .expect("demo project present");
     assert!(demo["summary"]["agents"].as_u64().unwrap() >= 1);
-    assert!(arr.iter().any(|p| p["meta"]["source"]["kind"] == "workspace"));
+    assert!(arr
+        .iter()
+        .any(|p| p["meta"]["source"]["kind"] == "workspace"));
 
     // scoped route on a known project works
     let cfg = http

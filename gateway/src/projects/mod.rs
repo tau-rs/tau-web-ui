@@ -259,8 +259,7 @@ impl ProjectRegistry {
         if target.join("tau.toml").exists() {
             bail!("target already contains a tau.toml: {}", target.display());
         }
-        std::fs::create_dir_all(target)
-            .with_context(|| format!("create {}", target.display()))?;
+        std::fs::create_dir_all(target).with_context(|| format!("create {}", target.display()))?;
         copy_dir_recursive(&ws_path, target)?;
         let meta = self.add_local(target).await?;
         self.reset_workspace(&ws_path).await?;
@@ -269,7 +268,10 @@ impl ProjectRegistry {
 
     /// Blank the workspace's authoring files and clear its run store + in-memory runs.
     async fn reset_workspace(&self, ws_path: &Path) -> Result<()> {
-        std::fs::write(ws_path.join("tau.toml"), "[project]\nname = \"workspace\"\n")?;
+        std::fs::write(
+            ws_path.join("tau.toml"),
+            "[project]\nname = \"workspace\"\n",
+        )?;
         for sub in ["agents", "workflows"] {
             let p = ws_path.join(sub);
             if p.exists() {

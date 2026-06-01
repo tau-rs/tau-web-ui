@@ -40,7 +40,10 @@ async fn workspace_is_not_persisted_to_manifest() {
         .unwrap();
     reg.add_local(proj.path()).await.unwrap(); // triggers write_manifest
     let manifest = std::fs::read_to_string(data.path().join("projects.json")).unwrap();
-    assert!(!manifest.contains("workspace"), "manifest leaked workspace: {manifest}");
+    assert!(
+        !manifest.contains("workspace"),
+        "manifest leaked workspace: {manifest}"
+    );
     assert!(manifest.contains("demo"));
 }
 
