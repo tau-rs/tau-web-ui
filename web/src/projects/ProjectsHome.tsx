@@ -3,6 +3,7 @@ import { useStore } from "../store/store";
 import { ProjectCard } from "./ProjectCard";
 import { AddProjectForm } from "./AddProjectForm";
 import { ActivityFeed } from "./ActivityFeed";
+import { UnsavedCard } from "./UnsavedCard";
 
 const fmtTok = (n: bigint | number) => {
   const v = Number(n);
@@ -32,6 +33,9 @@ export function ProjectsHome() {
     loadProjects().catch(() => {});
   }, [setActiveProject, loadProjects]);
 
+  const workspace = projects.find((p) => p.meta.source.kind === "workspace");
+  const realProjects = projects.filter((p) => p.meta.source.kind !== "workspace");
+
   const totalRuns = projects.reduce((a, p) => a + p.summary.runs, 0);
   const running = projects.reduce((a, p) => a + p.summary.running, 0);
   const failed24h = projects.reduce((a, p) => a + p.summary.failed_24h, 0);
@@ -42,7 +46,7 @@ export function ProjectsHome() {
       <h1 className="text-lg font-bold">Projects</h1>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <Stat label="Projects" value={projects.length} />
+        <Stat label="Projects" value={realProjects.length} />
         <Stat label="Runs (all)" value={totalRuns} />
         <Stat label="Running" value={running} tone="text-st-running" />
         <Stat label="Failed (24h)" value={failed24h} tone="text-st-error" />
@@ -51,7 +55,8 @@ export function ProjectsHome() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {projects.map((p) => (
+          {workspace && <UnsavedCard item={workspace} onSaved={() => loadProjects()} />}
+          {realProjects.map((p) => (
             <ProjectCard key={p.meta.id} item={p} />
           ))}
           <AddProjectForm onAdded={() => loadProjects()} />

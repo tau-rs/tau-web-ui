@@ -4,37 +4,42 @@ import { MemoryRouter } from "react-router-dom";
 import { ProjectsHome } from "./ProjectsHome";
 import { useStore } from "../store/store";
 
-function item(id: string, runs: number, failed: number) {
+function summary() {
   return {
-    meta: { id, name: id, path: `/p/${id}`, source: { kind: "local" } },
-    summary: {
-      runs,
-      running: 1,
-      failed_24h: failed,
-      success_rate: 0.9,
-      tokens: 1_200_000,
-      last_activity: null,
-      agents: 2,
-      engine_ok: true,
-    },
+    runs: 3,
+    running: 0,
+    failed_24h: 0,
+    success_rate: 1,
+    tokens: 0,
+    last_activity: null,
+    agents: 1,
+    engine_ok: true,
   };
 }
 
 beforeEach(() => {
-  useStore.setState({ projects: [item("demo", 10, 1), item("acme-bot", 5, 0)] as never });
+  useStore.setState({
+    projects: [
+      { meta: { id: "workspace", name: "workspace", path: "/w", source: { kind: "workspace" } }, summary: summary() },
+      { meta: { id: "demo", name: "demo", path: "/p/demo", source: { kind: "local" } }, summary: summary() },
+    ] as never,
+  });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
 });
 
 describe("ProjectsHome", () => {
-  it("renders a card per project and the global summary", () => {
+  it("renders the Unsaved card + real project cards + global summary", () => {
     render(
       <MemoryRouter>
         <ProjectsHome />
       </MemoryRouter>,
     );
+    expect(screen.getByText(/working environment/i)).toBeInTheDocument();
+    expect(screen.getByText("unsaved")).toBeInTheDocument();
     expect(screen.getByText("demo")).toBeInTheDocument();
-    expect(screen.getByText("acme-bot")).toBeInTheDocument();
-    expect(screen.getByText("15")).toBeInTheDocument();
     expect(screen.getByLabelText("project path")).toBeInTheDocument();
+    // The workspace renders as the Unsaved card, NOT as a normal ProjectCard
+    // (there must be no card titled "workspace").
+    expect(screen.queryByText("workspace")).not.toBeInTheDocument();
   });
 });
