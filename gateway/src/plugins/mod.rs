@@ -14,7 +14,7 @@ use crate::skills::Capability;
 #[ts(export)]
 pub struct ProtocolFrame {
     pub direction: String, // "out" (→ request to plugin) | "in" (← response/notification)
-    pub method: String,    // "meta.handshake" | "result" | "plugin.describe" | "tool.invoke" | "llm.generate"
+    pub method: String, // "meta.handshake" | "result" | "plugin.describe" | "tool.invoke" | "llm.generate"
     #[ts(type = "unknown")]
     pub payload: Value,
 }
@@ -269,7 +269,10 @@ mod tests {
         let anthropic = cat.iter().find(|p| p.name == "anthropic").unwrap();
         assert_eq!(anthropic.port, "LlmBackend");
         assert!(anthropic.describe.tool.is_none());
-        assert!(anthropic.transcript.iter().any(|f| f.method == "llm.generate"));
+        assert!(anthropic
+            .transcript
+            .iter()
+            .any(|f| f.method == "llm.generate"));
 
         assert!(CliPlugins.catalog().is_empty());
     }

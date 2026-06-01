@@ -47,7 +47,7 @@ async fn plugins_list_over_http() {
     let fsr = arr.iter().find(|p| p["name"] == "fs-read").unwrap();
     assert_eq!(fsr["port"], "Tool");
     assert_eq!(fsr["describe"]["port"], "Tool");
-    assert!(fsr["transcript"].as_array().unwrap().len() >= 1);
+    assert!(!fsr["transcript"].as_array().unwrap().is_empty());
 
     let anthropic = arr.iter().find(|p| p["name"] == "anthropic").unwrap();
     assert_eq!(anthropic["port"], "LlmBackend");
