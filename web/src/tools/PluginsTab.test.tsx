@@ -20,7 +20,11 @@ const plugins = [
     },
     transcript: [
       { direction: "out", method: "meta.handshake", payload: { protocol_version: 1 } },
-      { direction: "in", method: "result", payload: { ok: true, content: [{ type: "text", text: "# tau" }] } },
+      {
+        direction: "in",
+        method: "result",
+        payload: { ok: true, content: [{ type: "text", text: "# tau" }] },
+      },
     ],
   },
   {
@@ -51,7 +55,9 @@ beforeEach(() => {
 describe("PluginsTab", () => {
   it("lists plugins, selects the first by default, shows describe + transcript", async () => {
     render(<PluginsTab />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /fs-read/i })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /fs-read/i })).toBeInTheDocument(),
+    );
     // gated banner always present
     expect(screen.getByText(/mock data/i)).toBeInTheDocument();
     // default selection = fs-read → tool schema + a frame method
@@ -62,7 +68,9 @@ describe("PluginsTab", () => {
   it("switches selection and expands a frame to show JSON", async () => {
     const user = userEvent.setup();
     render(<PluginsTab />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /anthropic/i })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /anthropic/i })).toBeInTheDocument(),
+    );
     await user.click(screen.getByRole("button", { name: /anthropic/i }));
     const frameBtn = screen.getByRole("button", { name: /llm\.generate/i });
     expect(frameBtn).toBeInTheDocument();

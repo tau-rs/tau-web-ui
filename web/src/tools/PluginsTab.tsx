@@ -53,9 +53,7 @@ export function PluginsTab() {
 function PortBadge({ port }: { port: string }) {
   const tone =
     port === "LlmBackend" ? "bg-st-running/15 text-st-running" : "bg-accent/10 text-accent";
-  return (
-    <span className={`rounded-full px-2 text-[9px] font-semibold ${tone}`}>{port}</span>
-  );
+  return <span className={`rounded-full px-2 text-[9px] font-semibold ${tone}`}>{port}</span>;
 }
 
 function PluginDetailPane({ plugin }: { plugin: PluginDetail }) {

@@ -205,3 +205,17 @@ test("tools tab: list + expand shows used_by", async ({ page }) => {
   await expect(page.getByText(/paths=\[/)).toBeVisible();
   await expect(page.getByText("critic")).toBeVisible();
 });
+
+test("plugins tab: gated, two-pane describe + protocol-decode", async ({ page }) => {
+  await page.goto("/projects/demo/tools");
+  await page.getByRole("button", { name: /plugins/i }).click();
+  await expect(page.getByText(/mock data/i)).toBeVisible({ timeout: 5000 });
+  // select the LlmBackend plugin → its transcript has llm.generate
+  await page.getByRole("button", { name: /^anthropic/i }).click();
+  const frame = page.getByRole("button", { name: /llm\.generate/i });
+  await expect(frame).toBeVisible();
+  // expand the frame → pretty JSON payload visible. Match the spaced ("model": …)
+  // pretty form so we target the expanded <pre>, not the one-line preview.
+  await frame.click();
+  await expect(page.getByText(/"model": "claude-opus-4"/)).toBeVisible();
+});
