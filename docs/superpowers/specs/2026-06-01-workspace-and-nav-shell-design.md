@@ -59,11 +59,12 @@ The workspace's run store is the normal per-project dir `<data_root>/projects/wo
 ### 3.4 `save_workspace_as`
 
 ```rust
-pub async fn save_workspace_as(&self, target: &Path) -> Result<ProjectMeta>
+pub async fn save_workspace_as(&self, name: &str) -> Result<ProjectMeta>
 ```
-1. Resolve `target`; **bail** if it already contains a `tau.toml` (don't clobber an existing project) and ensure the parent is creatable.
-2. **Recursively copy** the workspace *project dir* (`<data_root>/workspace/`) into `target` — `tau.toml`, `agents/`, `workflows/`, and any referenced files. The run store is a *separate* dir, so only authoring files travel; the new project starts with no run history. (A small private recursive-copy helper; no new dependency.)
-3. `add_local(target)` → registers the copied dir as a normal `Local` project (persisted to `projects.json`).
+The caller supplies a **project name, never a filesystem path** — so there is no path-traversal / arbitrary-write surface (per the commit security review).
+1. Trim `name`; **bail** if empty. Compute `slug(name)`; **bail** if the slug is empty. The target is the managed path `<data_root>/saved/<slug>`; **bail** if it already exists.
+2. **Recursively copy** the workspace *project dir* (`<data_root>/workspace/`) into the target — `tau.toml`, `agents/`, `workflows/`, and any referenced files. The run store is a *separate* dir, so only authoring files travel; the new project starts with no run history. (A small private recursive-copy helper; no new dependency.)
+3. Stamp the chosen display name into the copied project (`config::write_project(&target, name, None)`), then `add_local(target)` → registers it as a normal `Local` project (persisted to `projects.json`); the project id is the deduped slug of the name.
 4. **Reset** the workspace: overwrite `<data_root>/workspace/tau.toml` back to the minimal blank, remove `agents/` and `workflows/` under it, and clear the workspace run store dir (`<data_root>/projects/workspace/runs/`).
 5. Return the new project's `ProjectMeta`.
 
@@ -73,7 +74,7 @@ One global route (mirrors the existing `/api/projects` global handlers):
 
 | Method | Route | Body / result | Errors |
 |---|---|---|---|
-| POST | `/api/workspace/save-as` | `{ path }` → `ProjectMeta` (the new project) | `400` on occupied/invalid target with a readable message |
+| POST | `/api/workspace/save-as` | `{ name }` → `ProjectMeta` (the new project) | `400` on empty/invalid/duplicate name with a readable message |
 
 `GET /api/projects` already returns the workspace (frontend renders the Unsaved card). The new `Workspace` variant exports to `web/src/types/ProjectSource.ts` via the existing ts-rs drift gate.
 
@@ -120,8 +121,8 @@ Replace the current `AppLayout`-owns-everything structure:
 ### 4.3 Projects overview — Unsaved card + Save-as
 
 - `ProjectsHome` partitions the `listProjects()` result: the item with `meta.source.kind === "workspace"` is rendered **first** as a distinct **Unsaved** card (dashed/amber styling, same mini-dashboard numbers), the rest as normal `ProjectCard`s. Clicking the Unsaved card → `/projects/workspace/dashboard`.
-- A **`SaveAsProjectForm`** (path input + Save, like `AddProjectForm`) is available on the Unsaved card and from the navbar action. It calls `saveWorkspaceAs(path)`; on success it navigates to the returned project (`/projects/:newId/dashboard`) and refreshes the projects list. Gateway `400` errors render inline.
-- New API fn in `web/src/api/projects.ts`: `saveWorkspaceAs(path: string): Promise<ProjectMeta>` → `POST /api/workspace/save-as`.
+- A **`SaveAsProjectForm`** (project-**name** input + Save) is available on the Unsaved card and from the navbar action. It calls `saveWorkspaceAs(name)`; on success it navigates to the returned project (`/projects/:newId/dashboard`) and refreshes the projects list. Gateway `400` errors render inline. (Name, not a path — the gateway writes under its managed root; see §3.4.)
+- New API fn in `web/src/api/projects.ts`: `saveWorkspaceAs(name: string): Promise<ProjectMeta>` → `POST /api/workspace/save-as` with `{ name }`.
 
 ## 5. Testing
 

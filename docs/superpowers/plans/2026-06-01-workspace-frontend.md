@@ -46,11 +46,11 @@ This is **Plan 2 of 2** for the transparent workspace + nav shell (see `docs/sup
 Append:
 
 ```ts
-export const saveWorkspaceAs = (path: string): Promise<ProjectMeta> =>
+export const saveWorkspaceAs = (name: string): Promise<ProjectMeta> =>
   fetch("/api/workspace/save-as", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ path }),
+    body: JSON.stringify({ name }),
   }).then(json<ProjectMeta>);
 ```
 
@@ -75,11 +75,11 @@ describe("SaveAsProjectForm", () => {
     const user = userEvent.setup();
     render(<SaveAsProjectForm onSaved={onSaved} />);
 
-    await user.type(screen.getByLabelText("save as path"), "/abs/saved");
+    await user.type(screen.getByLabelText("project name"), "My Bot");
     await user.click(screen.getByRole("button", { name: /save as project/i }));
 
     expect(f.mock.calls[0][0]).toBe("/api/workspace/save-as");
-    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ path: "/abs/saved" });
+    expect(JSON.parse(f.mock.calls[0][1].body)).toEqual({ name: "My Bot" });
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledWith(meta));
   });
 
@@ -90,7 +90,7 @@ describe("SaveAsProjectForm", () => {
     vi.stubGlobal("fetch", f);
     const user = userEvent.setup();
     render(<SaveAsProjectForm onSaved={vi.fn()} />);
-    await user.type(screen.getByLabelText("save as path"), "/abs/x");
+    await user.type(screen.getByLabelText("project name"), "My Bot");
     await user.click(screen.getByRole("button", { name: /save as project/i }));
     await vi.waitFor(() => expect(screen.getByText(/target exists/i)).toBeInTheDocument());
   });
@@ -110,14 +110,14 @@ import type { ProjectMeta } from "../types/ProjectMeta";
 import { saveWorkspaceAs } from "../api/projects";
 
 export function SaveAsProjectForm({ onSaved }: { onSaved: (m: ProjectMeta) => void }) {
-  const [path, setPath] = useState("");
+  const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     setError(null);
-    if (!path.trim()) return;
+    if (!name.trim()) return;
     try {
-      onSaved(await saveWorkspaceAs(path.trim()));
+      onSaved(await saveWorkspaceAs(name.trim()));
     } catch (e) {
       setError(e instanceof Error ? e.message : "save failed");
     }
@@ -127,10 +127,10 @@ export function SaveAsProjectForm({ onSaved }: { onSaved: (m: ProjectMeta) => vo
     <div className="mt-2 text-xs">
       <div className="flex gap-2">
         <input
-          aria-label="save as path"
-          placeholder="/abs/path/to/new-project"
-          value={path}
-          onChange={(e) => setPath(e.target.value)}
+          aria-label="project name"
+          placeholder="project name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
           className="min-w-0 flex-1 rounded border border-border bg-bg px-2 py-1"
         />
         <button
@@ -145,6 +145,8 @@ export function SaveAsProjectForm({ onSaved }: { onSaved: (m: ProjectMeta) => vo
   );
 }
 ```
+
+Note: the gateway writes the project under its managed root from this name (no filesystem path from the client) — this is the path-traversal hardening from the security review.
 
 - [ ] **Step 5: Run to confirm pass**
 
@@ -948,8 +950,7 @@ test("nav shell on the overview + workspace save-as", async ({ page }) => {
 
   // save the workspace as a real project from the navbar affordance
   await page.getByLabel("save as project").click();
-  const target = "/tmp/tau-ui-e2e-saved-" + Date.now();
-  await page.getByLabel("save as path").fill(target);
+  await page.getByLabel("project name").fill("e2e saved " + Date.now());
   await page.getByRole("button", { name: /save as project/i }).click();
 
   // we land in the new project, and it has the agent
@@ -968,10 +969,12 @@ cd web && pnpm exec playwright test
 ```
 Expected: ALL specs PASS. A genuine assertion failure → STOP and report BLOCKED with specifics. Missing-browser infra error → `pnpm exec playwright install chromium` then retry; if browsers truly unavailable, fall back to `pnpm exec playwright test --list` and note e2e was deferred to CI.
 
-- [ ] **Step 3: Restore mutated fixtures + clean the e2e save target**
+- [ ] **Step 3: Restore mutated fixtures**
+
+The e2e's saved projects land under the gateway's managed data root (`~/.tau-web-ui/saved/…`, uniquely named per run) — they don't touch the repo, so no cleanup is needed there. Just restore repo fixtures:
 
 ```bash
-cd /Users/titouanlebocq/code/tau-ui && git checkout fixtures/demo/tau.toml docs/verification/trace-complete.png 2>/dev/null; rm -rf /tmp/tau-ui-e2e-saved-* 2>/dev/null; true
+cd /Users/titouanlebocq/code/tau-ui && git checkout fixtures/demo/tau.toml docs/verification/trace-complete.png 2>/dev/null; true
 ```
 
 - [ ] **Step 4: Full web gate (mirror CI)**
