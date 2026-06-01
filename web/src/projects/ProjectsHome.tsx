@@ -25,10 +25,12 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 export function ProjectsHome() {
   const projects = useStore((s) => s.projects);
   const loadProjects = useStore((s) => s.loadProjects);
+  const setActiveProject = useStore((s) => s.setActiveProject);
 
   useEffect(() => {
+    setActiveProject("");
     loadProjects().catch(() => {});
-  }, [loadProjects]);
+  }, [setActiveProject, loadProjects]);
 
   const totalRuns = projects.reduce((a, p) => a + p.summary.runs, 0);
   const running = projects.reduce((a, p) => a + p.summary.running, 0);
