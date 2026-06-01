@@ -20,12 +20,16 @@ pub mod cloner;
 
 pub type ProjectId = String;
 
+/// Reserved id of the always-present, auto-provisioned working environment.
+pub const WORKSPACE_ID: &str = "workspace";
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[ts(export)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ProjectSource {
     Local,
     Git { url: String },
+    Workspace,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -115,6 +119,7 @@ impl ProjectRegistry {
             data_root,
             is_mock,
         }));
+        reg.ensure_workspace().await?;
         for meta in reg.read_manifest()? {
             reg.insert_entry(meta).await?;
         }
@@ -215,6 +220,29 @@ impl ProjectRegistry {
             .or_else(|| path.file_name().map(|s| s.to_string_lossy().to_string()))
             .unwrap_or_else(|| "project".into());
         Ok(name)
+    }
+
+    /// Ensure the built-in workspace project exists on disk and is registered
+    /// in-memory under the reserved id. Deterministic + re-ensured each start, so
+    /// it is never written to `projects.json`.
+    pub async fn ensure_workspace(&self) -> Result<()> {
+        if self.0.projects.read().await.contains_key(WORKSPACE_ID) {
+            return Ok(());
+        }
+        let dir = self.0.data_root.join("workspace");
+        std::fs::create_dir_all(&dir).ok();
+        let toml = dir.join("tau.toml");
+        if !toml.exists() {
+            std::fs::write(&toml, "[project]\nname = \"workspace\"\n")?;
+        }
+        let abs = std::fs::canonicalize(&dir).unwrap_or(dir);
+        let meta = ProjectMeta {
+            id: WORKSPACE_ID.to_string(),
+            name: "workspace".to_string(),
+            path: abs.to_string_lossy().to_string(),
+            source: ProjectSource::Workspace,
+        };
+        self.insert_entry(meta).await
     }
 
     /// Register a project already on disk at `path`. Idempotent on absolute path:
