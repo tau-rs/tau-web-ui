@@ -271,6 +271,101 @@ pub fn delete_local(project: &Path, name: &str) -> Result<bool> {
     Ok(true)
 }
 
+/// Installed (non-editable) skills: a seam over real `tau` (kind="skill" packages
+/// + `tau install`). The mock seeds one; the CLI seam is not exercised in v1.
+pub trait InstalledSkills: Send + Sync {
+    fn list(&self) -> Vec<SkillSummary>;
+    fn read(&self, name: &str) -> Option<SkillDetail>;
+    fn import(&self, git_url: &str) -> Result<String>;
+}
+
+pub struct MockInstalled {
+    skills: std::sync::Mutex<Vec<SkillDetail>>,
+}
+
+impl MockInstalled {
+    pub fn new() -> Self {
+        MockInstalled {
+            skills: std::sync::Mutex::new(vec![SkillDetail {
+                name: "web-search".into(),
+                description: Some("Search the web.".into()),
+                version: Some("1.2.0".into()),
+                source: "github.com/tau/web-search".into(),
+                editable: false,
+                content: "You can search the web.".into(),
+                capabilities: vec![Capability {
+                    kind: "net.http".into(),
+                    fields: BTreeMap::from([("hosts".to_string(), vec!["*".to_string()])]),
+                }],
+                requires_tools: vec![],
+                requires_skills: vec![],
+            }]),
+        }
+    }
+}
+
+impl Default for MockInstalled {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl InstalledSkills for MockInstalled {
+    fn list(&self) -> Vec<SkillSummary> {
+        self.skills.lock().unwrap().iter().map(summary_of).collect()
+    }
+    fn read(&self, name: &str) -> Option<SkillDetail> {
+        self.skills.lock().unwrap().iter().find(|s| s.name == name).cloned()
+    }
+    fn import(&self, git_url: &str) -> Result<String> {
+        let name = crate::packages::name_from_url(git_url);
+        let mut list = self.skills.lock().unwrap();
+        if !list.iter().any(|s| s.name == name) {
+            list.push(SkillDetail {
+                name: name.clone(),
+                description: Some("Imported skill.".into()),
+                version: Some("1.0.0".into()),
+                source: git_url.to_string(),
+                editable: false,
+                content: String::new(),
+                capabilities: vec![],
+                requires_tools: vec![],
+                requires_skills: vec![],
+            });
+        }
+        Ok(name)
+    }
+}
+
+/// CLI seam — not wired in v1 (the mock covers fake-tau-serve).
+pub struct CliInstalled;
+
+impl InstalledSkills for CliInstalled {
+    fn list(&self) -> Vec<SkillSummary> {
+        vec![]
+    }
+    fn read(&self, _name: &str) -> Option<SkillDetail> {
+        None
+    }
+    fn import(&self, _git_url: &str) -> Result<String> {
+        bail!("skill import requires a real tau binary")
+    }
+}
+
+/// Compose local + installed for the public surface.
+pub fn list(project: &Path, installed: &dyn InstalledSkills) -> Vec<SkillSummary> {
+    let mut out = list_local(project);
+    out.extend(installed.list());
+    out
+}
+
+pub fn read(project: &Path, name: &str, installed: &dyn InstalledSkills) -> Result<Option<SkillDetail>> {
+    if let Some(local) = read_local(project, name)? {
+        return Ok(Some(local));
+    }
+    Ok(installed.read(name))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -357,5 +452,23 @@ mod tests {
         let mut bad = detail.clone();
         bad.name = "Bad Name".into();
         assert!(write_local(d.path(), &bad).is_err());
+    }
+
+    #[test]
+    fn compose_local_and_installed() {
+        let inst = MockInstalled::new();
+        let p = demo();
+        let all = list(&p, &inst);
+        let names: Vec<&str> = all.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"critic")); // local
+        assert!(names.contains(&"web-search")); // installed
+        let ws = all.iter().find(|s| s.name == "web-search").unwrap();
+        assert!(!ws.editable);
+
+        let r = read(&p, "web-search", &inst).unwrap().unwrap();
+        assert!(!r.editable);
+        let n = inst.import("https://github.com/acme/translator.git").unwrap();
+        assert_eq!(n, "translator");
+        assert!(inst.read("translator").is_some());
     }
 }
