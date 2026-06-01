@@ -41,9 +41,9 @@ describe("routing", () => {
     expect(screen.getByText(/success rate/i)).toBeInTheDocument();
   });
 
-  it("renders stub pages for the new Build/Operate surfaces", () => {
+  it("renders the Agents index page at /projects/demo/agents", () => {
     at("/projects/demo/agents");
-    expect(screen.getByText(/author agents/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^agents$/i })).toBeInTheDocument();
   });
 
   it("renders the Workflows stub as gated", () => {

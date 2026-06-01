@@ -7,6 +7,8 @@ import { PackagesPage } from "./packages/PackagesPage";
 import { RunsPage } from "./runs/RunsPage";
 import { TracePage } from "./trace/TracePage";
 import { ProjectsHome } from "./projects/ProjectsHome";
+import { AgentsIndexPage } from "./agents/AgentsIndexPage";
+import { AgentEditorPage } from "./agents/AgentEditorPage";
 
 export function App() {
   return (
@@ -15,10 +17,9 @@ export function App() {
       <Route path="/projects/:pid" element={<AppLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route
-          path="agents"
-          element={<StubPage title="Agents" subtitle="Author agents — coming soon." />}
-        />
+        <Route path="agents" element={<AgentsIndexPage />} />
+        <Route path="agents/new" element={<AgentEditorPage />} />
+        <Route path="agents/:agentId" element={<AgentEditorPage />} />
         <Route
           path="workflows"
           element={
