@@ -9,14 +9,14 @@
 Three linked improvements sharing one **providers** data source:
 
 - **A — Agent provider field.** Replace the agent editor's free-text `llm_backend` `<input>` with an **editable combobox** (a native `<input list>` + `<datalist>` of available providers, still free-typeable) carrying a **✓ recommended** chip (clickable to apply), a new agent **pre-filled** with the recommended provider, and a **"⚙ Manage providers…"** entry that routes to the new Providers screen.
-- **B — Workflow graph node display.** Redesign the graph step node to a **header-band** layout (kind-colored header + compact body) that **surfaces the agent's provider**, and enrich the inspector with provider (+ recommended marker) · tools · input. The gateway resolves each `agent.run` step → its provider/tools from the agent config.
+- **B — Workflow graph node + canvas (n8n-grade).** A best-in-class canvas pass on the (gated) workflow graph editor, in four stacked levels: **(1)** icon-forward step nodes (kind icon + title + a **provider pill** for `agent.run`) with styled handles + selection ring; **(2)** a per-node **hover toolbar** (inspect; in edit mode: disable/duplicate/delete) + a **minimap** and **zoom controls**; **(3)** **inline add/insert** — a `+` on a node's output adds & connects the next step, a `+` on an edge inserts a step between (edit mode); **(4)** a **searchable add-step palette** on `+` (agent.run / tool.call / an agent by name). The inspector is enriched with provider (+ recommended marker) · tools · input. The gateway resolves each `agent.run` step → its provider/tools from the agent config. All edit actions remain **local-only**; Save → IR stays **gated** (unchanged from the shipped editor).
 - **D — Providers screen.** A new `/projects/:pid/providers` surface: a table of LLM providers with per-provider **status** (source · installed · recommended · credentials), an **Add provider** action (reusing the existing package install), and a per-provider **"🔒 Set API key"** affordance that is **gated** (tau β.5 credentials chain).
 
 All three read one gateway providers composer, so the available-providers list and the recommendation are computed once, from **real project data**, and stay consistent across the agent editor, the graph nodes, and the Providers screen.
 
 Locked decisions (brainstorm):
 - Provider field = **typeable combobox** (datalist), not a hard select — keeps today's free-text freedom.
-- Node display = **header-band** (kind-colored header + compact body).
+- Workflow canvas = **n8n-grade, all four levels** (icon nodes + provider · hover toolbar + minimap/zoom · inline `+` add & edge-insert · searchable add-step palette). React Flow built-ins (`<NodeToolbar>`, `<MiniMap>`, `<Controls>`, custom edge via `EdgeLabelRenderer`) cover it; no new library. Interaction *logic* (insert-between, add-next) lives in **pure, unit-tested helpers**; the live canvas is covered by e2e. Edits remain local-only; Save → IR gated.
 - **Recommended** = the **modal** backend across the project's agents (most-used), falling back to `anthropic` when no agent has one set. (There is no project-level `llm_backend` field; recommendation comes from real agent config.)
 - **Installed** = provider name ∈ installed package names (so `anthropic`, an installed package, shows installed; "Add provider" = the existing package install flips it). No change to the package model.
 - Credentials are **gated** (only the API-key step); everything else on the Providers screen is real.
@@ -73,10 +73,12 @@ pub tools: Vec<String>,        // agent.run: the agent's requires_tools names
 - On **new agent** (no `llm_backend` yet), pre-fill with the recommended provider.
 - A **"⚙ Manage providers…"** link (routes to `/projects/:pid/providers`).
 
-### 4.3 B — Graph node (`web/src/graph/`)
-- `StepNode.tsx` → **header-band**: a kind-colored header (agent.run = accent, tool.call = `st-running`) with the step label + kind, and a compact body: agent.run → agent name + a **provider pill** (`⚡ <provider>`); tool.call → tool name + (kept) the existing cap/identity.
-- `layout.ts` `StepNodeData` gains `provider: string | null` + `tools: string[]`; `workflowToFlow` passes them through.
-- `GraphEditor.tsx` inspector (view mode): add a **provider** row (with a `✓ recommended` marker when it equals the recommended), a **tools** row (pills), keep input. (Edit mode unchanged — provider/tools are read-only context, edited on the agent, not the graph.)
+### 4.3 B — Graph node + canvas (`web/src/graph/`), n8n-grade (four levels)
+- **Level 1 — icon node.** `StepNode.tsx` → icon-forward: a kind icon square (agent.run = accent gradient, tool.call = `st-running`/blue) + title (step label) + subtitle (agent.run → agent name + a **provider pill** `⚡ <provider>`; tool.call → tool name + cap); styled left/right handles; selection ring. `layout.ts` `StepNodeData` gains `provider: string | null` + `tools: string[]`; `workflowToFlow` passes them through.
+- **Level 2 — hover toolbar + chrome.** A React Flow `<NodeToolbar>` shown on node hover/select: an **inspect** action (focuses the inspector) always; **disable · duplicate · delete** only in edit mode. Add `<MiniMap>` + `<Controls>` to `GraphCanvas`.
+- **Level 3 — inline add/insert (edit mode).** A `+` affordance on a node's source handle that **adds & connects** a new step; a **custom edge** (`EdgeLabelRenderer`) with a midpoint `+` that **inserts** a step between two nodes (rewires the edge → two edges). The graph mutations are pure helpers in `web/src/graph/edit.ts` — `addNextStep(nodes, edges, fromId, kind)` and `insertStepOnEdge(nodes, edges, edgeId, kind)` — returning new `{nodes, edges}` (unit-tested); the canvas just calls them.
+- **Level 4 — add-step palette.** Clicking a `+` opens a small searchable popover (`StepPalette.tsx`): pick `agent.run`, `tool.call`, or filter to a specific agent by name (from the agents list) → calls the Level-3 helper with the chosen kind/agent. (Default kind when dismissed: `agent.run`.)
+- `GraphEditor.tsx` inspector (view mode): a **provider** row (with a `✓ recommended` marker when it equals the recommended), a **tools** row (pills), keep input. New nodes/edges from Levels 3–4 live in local state only; **Save → IR stays gated** (no persistence).
 
 ### 4.4 D — Providers screen (`web/src/providers/ProvidersPage.tsx`)
 - New route `/projects/:pid/providers` (`App.tsx`); new **Sidebar** nav item "Providers" in the Build group (near Packages/Config), un-gated (the surface is real; only the credentials step is gated in-row).
@@ -93,12 +95,14 @@ pub tools: Vec<String>,        // agent.run: the agent's requires_tools names
 **Web (vitest):**
 - AgentEditor: the provider field is a combobox with a `<datalist>` of provider names incl. the recommended; new-agent pre-fill; the "Manage providers" link; typing a custom value still works.
 - StepNode/inspector: an agent node shows its provider pill; the inspector shows provider + tools.
+- **Graph edit helpers** (`graph/edit.ts`, pure): `addNextStep` appends a node + a connecting edge from the source; `insertStepOnEdge` replaces an edge A→B with A→new→B (one node added, edge count net +1). Unit-tested directly (the canvas/React-Flow interactions are not asserted in jsdom — covered by e2e).
+- `StepPalette`: renders the kind options + filters agents by the search term.
 - ProvidersPage: renders the providers table; the "🔒 Set API key" button is **disabled**; the Add-provider control posts an install.
 
 **E2e (Playwright):**
 - Agent editor → the provider combobox shows the recommended marker.
 - `/projects/demo/providers` → `anthropic` row shows installed + the gated "Set API key" (disabled).
-- A workflow graph node shows a provider pill.
+- Workflow graph: a node shows a provider pill; the minimap renders; in **edit mode**, clicking a node's `+` (then the palette) adds a new `.react-flow__node` (node count increases); the gated Build button stays disabled.
 
 ## 6. ts-rs / CI
 `Provider` and the two new `WorkflowNode` fields export to `web/src/types` via `#[ts(export)]` + the drift gate. No CI job changes.
