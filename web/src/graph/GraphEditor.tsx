@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   applyNodeChanges,
   applyEdgeChanges,
@@ -22,7 +22,9 @@ export function GraphEditor() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [edit, setEdit] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
-  const [counter, setCounter] = useState(0);
+  // Monotonic id source for added steps — a ref so rapid clicks can't read a
+  // stale value and mint duplicate node ids.
+  const counter = useRef(0);
 
   useEffect(() => {
     getWorkflows()
@@ -54,8 +56,8 @@ export function GraphEditor() {
   const onConnect = useCallback((c: Connection) => setEdges((es) => addEdge(c, es)), []);
 
   function addStep(kind: "agent.run" | "tool.call") {
-    const id = `step-${counter + 1}`;
-    setCounter((n) => n + 1);
+    counter.current += 1;
+    const id = `step-${counter.current}`;
     setNodes((ns) => [
       ...ns,
       {
