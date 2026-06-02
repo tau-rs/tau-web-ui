@@ -126,6 +126,7 @@ mod tests {
         let g = MockGraph.graph("nightly-research");
         assert_eq!(g.workflow, "nightly-research");
         assert_eq!(g.nodes.len(), 3);
+        assert_eq!(g.nodes[0].label, "gather"); // label defaults to the step id
         assert_eq!(g.nodes[0].kind, "agent.run");
         assert_eq!(g.nodes[2].kind, "tool.call");
         assert_eq!(g.edges.len(), 2);
@@ -138,6 +139,8 @@ mod tests {
     fn mock_build_report_has_no_edges() {
         let g = MockGraph.graph("build-report");
         assert_eq!(g.nodes.len(), 2);
+        assert_eq!(g.nodes[0].kind, "agent.run"); // collect
+        assert_eq!(g.nodes[1].kind, "tool.call"); // render
         assert!(g.edges.is_empty());
     }
 
