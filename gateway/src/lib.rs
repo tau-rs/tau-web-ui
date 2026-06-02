@@ -3,6 +3,7 @@ pub mod adapters;
 pub mod api;
 pub mod checks;
 pub mod config;
+pub mod graph;
 pub mod packages;
 pub mod plugins;
 pub mod projects;
