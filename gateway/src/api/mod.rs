@@ -2,6 +2,7 @@
 //! and resolve their `AppState` via the `Scoped` extractor; global routes operate
 //! on the `ProjectRegistry` directly.
 pub mod agents;
+pub mod checks;
 pub mod config;
 pub mod meta;
 pub mod packages;
@@ -55,7 +56,8 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/plugins", get(plugins::list))
         .route("/targets", get(ship::targets))
         .route("/bundles", get(ship::bundles))
-        .route("/build", post(ship::build));
+        .route("/build", post(ship::build))
+        .route("/checks", get(checks::report));
 
     Router::new()
         .route("/api/health", get(projects::health))
