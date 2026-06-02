@@ -13,6 +13,7 @@ import { AgentEditorPage } from "./agents/AgentEditorPage";
 import { ToolsPage } from "./tools/ToolsPage";
 import { SkillEditorPage } from "./tools/SkillEditorPage";
 import { ShipPage } from "./ship/ShipPage";
+import { HealthPage } from "./health/HealthPage";
 
 export function App() {
   return (
@@ -43,12 +44,7 @@ export function App() {
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:id" element={<TracePage />} />
           <Route path="ship" element={<ShipPage />} />
-          <Route
-            path="health"
-            element={
-              <StubPage title="Health checks" subtitle="tau check & sandbox — coming soon." />
-            }
-          />
+          <Route path="health" element={<HealthPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
