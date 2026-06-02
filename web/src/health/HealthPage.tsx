@@ -29,6 +29,7 @@ function worst(c: CategoryStatus): "error" | "warning" | "note" | "pass" {
 
 export function HealthPage() {
   const health = useStore((s) => s.health);
+  const loadHealth = useStore((s) => s.loadHealth);
   const [report, setReport] = useState<CheckReport | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
 
@@ -36,6 +37,11 @@ export function HealthPage() {
     getChecks()
       .then(setReport)
       .catch(() => {});
+  }
+  // Re-run refreshes both the checks report and the connectivity strip it sits in.
+  function rerun() {
+    load();
+    loadHealth().catch(() => {});
   }
   useEffect(() => {
     load();
@@ -64,7 +70,7 @@ export function HealthPage() {
         </span>
         <span className="font-mono text-muted">tau {health?.tau_version || "—"}</span>
         <button
-          onClick={load}
+          onClick={rerun}
           className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs font-semibold"
         >
           Re-run
