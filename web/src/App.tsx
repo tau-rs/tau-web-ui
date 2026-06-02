@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "./app/AppShell";
 import { ProjectScope } from "./app/ProjectScope";
-import { StubPage } from "./app/StubPage";
 import { ConfigPage } from "./config/ConfigPage";
 import { DashboardPage } from "./dashboard/DashboardPage";
 import { PackagesPage } from "./packages/PackagesPage";
@@ -14,6 +13,7 @@ import { ToolsPage } from "./tools/ToolsPage";
 import { SkillEditorPage } from "./tools/SkillEditorPage";
 import { ShipPage } from "./ship/ShipPage";
 import { HealthPage } from "./health/HealthPage";
+import { GraphEditor } from "./graph/GraphEditor";
 
 export function App() {
   return (
@@ -26,16 +26,7 @@ export function App() {
           <Route path="agents" element={<AgentsIndexPage />} />
           <Route path="agents/new" element={<AgentEditorPage />} />
           <Route path="agents/:agentId" element={<AgentEditorPage />} />
-          <Route
-            path="workflows"
-            element={
-              <StubPage
-                title="Workflows"
-                subtitle="Author & run workflows — coming soon."
-                gated="β.2 (visual graph)"
-              />
-            }
-          />
+          <Route path="workflows" element={<GraphEditor />} />
           <Route path="tools" element={<ToolsPage />} />
           <Route path="tools/skills/new" element={<SkillEditorPage />} />
           <Route path="tools/skills/:name" element={<SkillEditorPage />} />

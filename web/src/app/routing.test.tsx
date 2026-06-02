@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../App";
 import { useStore } from "../store/store";
+
+// React Flow needs real layout (jsdom can't) — mock the canvas so the
+// /workflows route can mount in this routing smoke test.
+vi.mock("../graph/GraphCanvas", () => ({ GraphCanvas: () => <div data-testid="canvas" /> }));
 
 beforeEach(() =>
   useStore.setState({
@@ -46,9 +50,10 @@ describe("routing", () => {
     expect(screen.getByRole("heading", { name: /^agents$/i })).toBeInTheDocument();
   });
 
-  it("renders the Workflows stub as gated", () => {
+  it("renders the Workflows graph editor as gated", () => {
     at("/projects/demo/workflows");
-    expect(screen.getByText(/waits on tau/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /workflows \/ graph/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /build from ir/i })).toBeDisabled();
   });
 
   it("renders the Packages page", () => {

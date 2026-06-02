@@ -1,0 +1,53 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { GraphEditor } from "./GraphEditor";
+
+// The React Flow canvas needs real layout (jsdom can't) — mock it out; the live
+// canvas is covered by the e2e test.
+vi.mock("./GraphCanvas", () => ({ GraphCanvas: () => <div data-testid="canvas" /> }));
+
+const graph = {
+  workflow: "nightly-research",
+  nodes: [
+    { id: "gather", kind: "agent.run", label: "gather", agent: "researcher", tool: null, input: "${input}" },
+    { id: "summarise", kind: "agent.run", label: "summarise", agent: "greeter", tool: null, input: "${steps.gather.output}" },
+    { id: "save-results", kind: "tool.call", label: "save-results", agent: null, tool: "fs-write", input: "${steps.summarise.output}" },
+  ],
+  edges: [
+    { source: "gather", target: "summarise" },
+    { source: "summarise", target: "save-results" },
+  ],
+};
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((url: string) => {
+      if (url.includes("/graph"))
+        return Promise.resolve({ ok: true, json: async () => graph });
+      if (url.includes("/workflows"))
+        return Promise.resolve({ ok: true, json: async () => ({ workflows: ["nightly-research", "build-report"] }) });
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    }),
+  );
+});
+
+describe("GraphEditor", () => {
+  it("loads the graph, shows a disabled gated Build button + the first step inspector", async () => {
+    render(<GraphEditor />);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /workflow/i })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+    // default-selected first node → inspector shows "gather" (canvas is mocked, so this is unique)
+    await waitFor(() => expect(screen.getByText("gather")).toBeInTheDocument());
+  });
+
+  it("toggles edit mode (local banner + add-step palette)", async () => {
+    const user = userEvent.setup();
+    render(<GraphEditor />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^edit$/i })).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: /^edit$/i }));
+    expect(screen.getByText(/changes are local/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /\+ agent\.run/i })).toBeInTheDocument();
+  });
+});
