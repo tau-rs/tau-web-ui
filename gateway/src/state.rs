@@ -11,6 +11,7 @@ use tokio::sync::{broadcast, Mutex, RwLock};
 use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
 use crate::adapters::TraceDelta;
+use crate::checks::{self, CheckReport, CheckSource};
 use crate::config::{self, AgentDetail};
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
 use crate::plugins::{self, PluginDetail, PluginsSource};
@@ -36,6 +37,7 @@ pub struct Inner {
     tools_source: Box<dyn ToolsSource>,
     plugins_source: Box<dyn PluginsSource>,
     ship_source: Box<dyn ShipSource>,
+    check_source: Box<dyn CheckSource>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -91,6 +93,11 @@ impl AppState {
         } else {
             Box::new(ship::CliShip)
         };
+        let check_source: Box<dyn CheckSource> = if is_mock {
+            Box::new(checks::MockChecks)
+        } else {
+            Box::new(checks::CliChecks)
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -102,6 +109,7 @@ impl AppState {
             tools_source,
             plugins_source,
             ship_source,
+            check_source,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -508,6 +516,10 @@ impl AppState {
 
     pub fn build(&self, target: &str) -> Result<Bundle, BuildError> {
         self.0.ship_source.build(target)
+    }
+
+    pub fn checks(&self) -> CheckReport {
+        self.0.check_source.report()
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
