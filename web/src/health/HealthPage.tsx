@@ -82,6 +82,7 @@ export function HealthPage() {
             return (
               <button
                 key={c.name}
+                aria-pressed={active}
                 onClick={() => setFilter(active ? null : c.name)}
                 className={`flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs ${
                   active ? "border-accent" : "border-border"
