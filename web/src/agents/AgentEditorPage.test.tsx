@@ -94,9 +94,7 @@ describe("AgentEditorPage", () => {
     expect(screen.getByLabelText("agent id")).toBeDisabled();
     await user.click(screen.getByRole("button", { name: /^save$/i }));
     const putCall = () =>
-      f.mock.calls.find(
-        (c) => String(c[0]).includes("/agents/greeter") && c[1]?.method === "PUT",
-      );
+      f.mock.calls.find((c) => String(c[0]).includes("/agents/greeter") && c[1]?.method === "PUT");
     await waitFor(() => expect(putCall()).toBeTruthy());
     expect(putCall()![0]).toBe("/api/projects/demo/agents/greeter");
   });

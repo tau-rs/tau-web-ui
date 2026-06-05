@@ -252,3 +252,12 @@ test("workflows: graph editor renders + edit mode is gated", async ({ page }) =>
   await expect(page.getByText(/changes are local/i)).toBeVisible();
   await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
 });
+
+test("agents: provider combobox shows the recommended provider", async ({ page }) => {
+  await page.goto("/projects/demo/agents/new");
+  await expect(page.getByLabel("agent id")).toBeVisible({ timeout: 5000 });
+  // the recommended chip (anthropic — demo agents have no backend set)
+  await expect(page.getByRole("button", { name: /recommended: anthropic/i })).toBeVisible();
+  // and the field pre-filled with it
+  await expect(page.getByLabel("llm backend")).toHaveValue("anthropic");
+});
