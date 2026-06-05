@@ -3,7 +3,7 @@
 //! one. Shared by the agent editor, the workflow graph nodes, and the Providers
 //! screen. Credentials are gated (β.5).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -24,7 +24,7 @@ const WELL_KNOWN: &[&str] = &["anthropic", "openai", "local"];
 /// project's agents, tie-broken by first appearance; `"anthropic"` when none set.
 pub fn recommended_backend(agent_backends: &[String]) -> String {
     let mut order: Vec<&str> = vec![];
-    let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    let mut counts: HashMap<&str, usize> = HashMap::new();
     for b in agent_backends {
         if b.is_empty() {
             continue;
