@@ -83,6 +83,20 @@ export function StepNode({ id, data, selected }: NodeProps<Node<StepNodeData>>) 
             )}
           </div>
         </div>
+        {actions.editable && (
+          <button
+            type="button"
+            title="add next step"
+            aria-label="add next step"
+            onClick={(ev) => {
+              ev.stopPropagation();
+              actions.onRequestAdd(id, { x: ev.clientX, y: ev.clientY });
+            }}
+            className="absolute -right-3 top-1/2 z-10 -mt-2.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent bg-surface text-xs font-bold text-accent"
+          >
+            +
+          </button>
+        )}
         <Handle type="source" position={Position.Right} className={handle} />
       </div>
     </>

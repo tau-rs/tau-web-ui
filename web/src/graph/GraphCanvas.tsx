@@ -10,9 +10,11 @@ import {
   type EdgeChange,
 } from "@xyflow/react";
 import { StepNode } from "./StepNode";
+import { StepEdge } from "./StepEdge";
 import { GraphActionsContext, type GraphActions } from "./GraphActions";
 
 const nodeTypes = { step: StepNode };
+const edgeTypes = { step: StepEdge };
 
 export function GraphCanvas({
   nodes,
@@ -40,6 +42,7 @@ export function GraphCanvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         nodesDraggable={editable}
         nodesConnectable={editable}

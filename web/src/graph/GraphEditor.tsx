@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   applyNodeChanges,
   applyEdgeChanges,
@@ -15,8 +15,10 @@ import { getWorkflowGraph } from "../api/graph";
 import { getProviders } from "../api/providers";
 import { workflowToFlow, type StepNodeData } from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
-import { duplicateNode, toggleDisabled } from "./edit";
+import { duplicateNode, toggleDisabled, addNextStep, insertStepOnEdge, type StepPick } from "./edit";
 import type { GraphActions } from "./GraphActions";
+import { StepPalette } from "./StepPalette";
+import { listAgents } from "../api/agents";
 
 export function GraphEditor() {
   const [workflows, setWorkflows] = useState<string[]>([]);
@@ -30,6 +32,18 @@ export function GraphEditor() {
   useEffect(() => {
     getProviders()
       .then((ps) => setRecommended(ps.find((p) => p.recommended)?.name ?? ""))
+      .catch(() => {});
+  }, []);
+
+  const [agents, setAgents] = useState<string[]>([]);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [palette, setPalette] = useState<
+    { mode: "add" | "insert"; anchorId: string; x: number; y: number } | null
+  >(null);
+
+  useEffect(() => {
+    listAgents()
+      .then((as) => setAgents(as.map((a) => a.id)))
       .catch(() => {});
   }, []);
 
@@ -74,6 +88,17 @@ export function GraphEditor() {
     );
   }
 
+  function onPickStep(pick: StepPick) {
+    if (!palette) return;
+    const out =
+      palette.mode === "add"
+        ? addNextStep(nodes, edges, palette.anchorId, pick, recommended)
+        : insertStepOnEdge(nodes, edges, palette.anchorId, pick, recommended);
+    setNodes(out.nodes);
+    setEdges(out.edges);
+    setPalette(null);
+  }
+
   const actions: GraphActions = useMemo(
     () => ({
       editable: edit,
@@ -90,8 +115,14 @@ export function GraphEditor() {
         setNodes((ns) => ns.filter((n) => n.id !== id));
         setSelId((cur) => (cur === id ? null : cur));
       },
-      onRequestAdd: () => {},
-      onRequestInsert: () => {},
+      onRequestAdd: (fromId, at) => {
+        const r = wrapRef.current?.getBoundingClientRect();
+        setPalette({ mode: "add", anchorId: fromId, x: at.x - (r?.left ?? 0), y: at.y - (r?.top ?? 0) });
+      },
+      onRequestInsert: (edgeId, at) => {
+        const r = wrapRef.current?.getBoundingClientRect();
+        setPalette({ mode: "insert", anchorId: edgeId, x: at.x - (r?.left ?? 0), y: at.y - (r?.top ?? 0) });
+      },
     }),
     [edit],
   );
@@ -141,16 +172,23 @@ export function GraphEditor() {
       )}
 
       <div className="grid grid-cols-[1fr_190px] gap-3">
-        <GraphCanvas
-          nodes={nodes}
-          edges={edges}
-          editable={edit}
-          actions={actions}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onSelect={setSelId}
-        />
+        <div ref={wrapRef} className="relative">
+          <GraphCanvas
+            nodes={nodes}
+            edges={edges}
+            editable={edit}
+            actions={actions}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onSelect={setSelId}
+          />
+          {palette && (
+            <div className="absolute z-20" style={{ left: palette.x, top: palette.y }}>
+              <StepPalette agents={agents} onPick={onPickStep} onClose={() => setPalette(null)} />
+            </div>
+          )}
+        </div>
         <div className="space-y-2 text-xs">
           <div className="text-[9px] uppercase text-muted">step</div>
           {current ? (
