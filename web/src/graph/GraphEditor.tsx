@@ -12,6 +12,7 @@ import {
 import type { WorkflowGraph } from "../types/WorkflowGraph";
 import { getWorkflows } from "../api/client";
 import { getWorkflowGraph } from "../api/graph";
+import { getProviders } from "../api/providers";
 import { workflowToFlow, type StepNodeData } from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
 
@@ -25,6 +26,13 @@ export function GraphEditor() {
   // Monotonic id source for added steps — a ref so rapid clicks can't read a
   // stale value and mint duplicate node ids.
   const counter = useRef(0);
+
+  const [recommended, setRecommended] = useState<string>("");
+  useEffect(() => {
+    getProviders()
+      .then((ps) => setRecommended(ps.find((p) => p.recommended)?.name ?? ""))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     getWorkflows()
@@ -204,6 +212,29 @@ export function GraphEditor() {
                     ? `agent ${current.data.agent}`
                     : `tool ${current.data.tool}`}
                 </div>
+                {current.data.kind === "agent.run" && current.data.provider && (
+                  <div className="flex flex-wrap items-center gap-1 text-muted">
+                    provider
+                    <span className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent">
+                      ⚡ {current.data.provider}
+                    </span>
+                    {current.data.provider === recommended && (
+                      <span className="rounded bg-st-ok-soft px-1 text-[10px] font-medium text-st-ok">
+                        ✓ recommended
+                      </span>
+                    )}
+                  </div>
+                )}
+                {current.data.tools && current.data.tools.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 text-muted">
+                    tools
+                    {current.data.tools.map((t) => (
+                      <span key={t} className="rounded border border-border px-1 text-[10px]">
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {current.data.input && (
                   <div className="font-mono text-[10px] text-muted">{current.data.input}</div>
                 )}

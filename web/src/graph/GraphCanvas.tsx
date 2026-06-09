@@ -2,6 +2,7 @@ import {
   ReactFlow,
   Background,
   Controls,
+  MiniMap,
   type Node,
   type Edge,
   type Connection,
@@ -45,6 +46,7 @@ export function GraphCanvas({
         onPaneClick={() => onSelect(null)}
       >
         <Background />
+        <MiniMap pannable zoomable className="!bg-surface" />
         <Controls />
       </ReactFlow>
     </div>

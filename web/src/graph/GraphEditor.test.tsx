@@ -17,6 +17,8 @@ const graph = {
       agent: "researcher",
       tool: null,
       input: "${input}",
+      provider: "anthropic",
+      tools: ["web-search"],
     },
     {
       id: "summarise",
@@ -25,6 +27,8 @@ const graph = {
       agent: "greeter",
       tool: null,
       input: "${steps.gather.output}",
+      provider: "anthropic",
+      tools: [],
     },
     {
       id: "save-results",
@@ -33,6 +37,8 @@ const graph = {
       agent: null,
       tool: "fs-write",
       input: "${steps.summarise.output}",
+      provider: null,
+      tools: [],
     },
   ],
   edges: [
@@ -50,6 +56,13 @@ beforeEach(() => {
         return Promise.resolve({
           ok: true,
           json: async () => ({ workflows: ["nightly-research", "build-report"] }),
+        });
+      if (url.includes("/providers"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            { name: "anthropic", installed: true, recommended: true, source: "well-known", credentials_gated: true },
+          ],
         });
       return Promise.resolve({ ok: true, json: async () => ({}) });
     }),
@@ -76,5 +89,13 @@ describe("GraphEditor", () => {
     await user.click(screen.getByRole("button", { name: /^edit$/i }));
     expect(screen.getByText(/changes are local/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /\+ agent\.run/i })).toBeInTheDocument();
+  });
+
+  it("shows the provider pill (recommended) and tools in the inspector", async () => {
+    render(<GraphEditor />);
+    await waitFor(() => expect(screen.getByText("gather")).toBeInTheDocument());
+    expect(screen.getByText(/⚡ anthropic/)).toBeInTheDocument();
+    expect(screen.getByText(/✓ recommended/)).toBeInTheDocument();
+    expect(screen.getByText("web-search")).toBeInTheDocument();
   });
 });
