@@ -19,37 +19,52 @@ const providers = [
     credentials_gated: true,
   },
 ];
+const credentials = [
+  {
+    backend: "anthropic",
+    sources: [{ kind: "local", ref: null, configured: true, gated: false }],
+    resolved: true,
+    resolved_via: "local",
+  },
+];
 
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn((url: string) => {
+      if (url.includes("/api/credentials"))
+        return Promise.resolve({ ok: true, json: async () => credentials, text: async () => "" });
       if (url.includes("/providers"))
-        return Promise.resolve({ ok: true, json: async () => providers });
+        return Promise.resolve({ ok: true, json: async () => providers, text: async () => "" });
       if (url.includes("/packages/install"))
-        return Promise.resolve({ ok: true, json: async () => ({ package: { name: "added" } }) });
-      return Promise.resolve({ ok: true, json: async () => ({}) });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ package: { name: "added" } }),
+          text: async () => "",
+        });
+      return Promise.resolve({ ok: true, json: async () => ({}), text: async () => "" });
     }),
   );
 });
 
 describe("ProvidersPage", () => {
-  it("renders the providers table; Set API key is gated", async () => {
+  it("renders providers with their credential status badge", async () => {
     render(<ProvidersPage />);
     await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
-    expect(screen.getByText("openai")).toBeInTheDocument();
-    // anthropic: installed + recommended badges
-    expect(screen.getByText("✓ installed")).toBeInTheDocument();
-    expect(screen.getByText("✓ recommended")).toBeInTheDocument();
-    // openai: not installed
-    expect(screen.getByText("not installed")).toBeInTheDocument();
-    // every Set API key button is gated (disabled)
-    const gated = screen.getAllByRole("button", { name: /Set API key/i });
-    expect(gated.length).toBe(2);
-    gated.forEach((b) => expect(b).toBeDisabled());
+    expect(screen.getByText("✓ via local")).toBeInTheDocument();
+    expect(screen.getByText("🔒 none")).toBeInTheDocument();
   });
 
-  it("Add provider posts an install and reloads", async () => {
+  it("expands a row into the credential chain editor", async () => {
+    const user = userEvent.setup();
+    render(<ProvidersPage />);
+    await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
+    await user.click(screen.getAllByRole("button", { name: "set credential" })[0]);
+    expect(screen.getByText(/credential chain — anthropic/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
+  });
+
+  it("Add provider posts an install", async () => {
     const user = userEvent.setup();
     render(<ProvidersPage />);
     await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
@@ -61,9 +76,9 @@ describe("ProvidersPage", () => {
     await waitFor(() => {
       const calls = (globalThis.fetch as unknown as { mock: { calls: [string, RequestInit?][] } })
         .mock.calls;
-      const install = calls.find(([u]) => u.includes("/packages/install"));
-      expect(install).toBeTruthy();
-      expect(install?.[1]?.method).toBe("POST");
+      expect(calls.some(([u, o]) => u.includes("/packages/install") && o?.method === "POST")).toBe(
+        true,
+      );
     });
   });
 });
