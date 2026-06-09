@@ -100,6 +100,7 @@ export function ProvidersPage() {
                       {credBadge(p.name)}
                       <button
                         type="button"
+                        aria-expanded={expanded === p.name}
                         onClick={() => setExpanded((cur) => (cur === p.name ? null : p.name))}
                         className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted hover:text-fg"
                       >
@@ -114,9 +115,7 @@ export function ProvidersPage() {
                       <CredentialChainEditor
                         backend={p.name}
                         status={creds[p.name]}
-                        onSaved={() => {
-                          reloadCreds();
-                        }}
+                        onSaved={reloadCreds}
                       />
                     </td>
                   </tr>
