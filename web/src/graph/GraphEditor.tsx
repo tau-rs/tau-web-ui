@@ -15,7 +15,13 @@ import { getWorkflowGraph } from "../api/graph";
 import { getProviders } from "../api/providers";
 import { workflowToFlow, type StepNodeData } from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
-import { duplicateNode, toggleDisabled, addNextStep, insertStepOnEdge, type StepPick } from "./edit";
+import {
+  duplicateNode,
+  toggleDisabled,
+  addNextStep,
+  insertStepOnEdge,
+  type StepPick,
+} from "./edit";
 import type { GraphActions } from "./GraphActions";
 import { StepPalette } from "./StepPalette";
 import { listAgents } from "../api/agents";
@@ -37,9 +43,12 @@ export function GraphEditor() {
 
   const [agents, setAgents] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [palette, setPalette] = useState<
-    { mode: "add" | "insert"; anchorId: string; x: number; y: number } | null
-  >(null);
+  const [palette, setPalette] = useState<{
+    mode: "add" | "insert";
+    anchorId: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   useEffect(() => {
     listAgents()
@@ -77,7 +86,10 @@ export function GraphEditor() {
     (c: EdgeChange[]) => setEdges((es) => applyEdgeChanges(c, es)),
     [],
   );
-  const onConnect = useCallback((c: Connection) => setEdges((es) => addEdge(c, es)), []);
+  const onConnect = useCallback(
+    (c: Connection) => setEdges((es) => addEdge({ ...c, type: "step" }, es)),
+    [],
+  );
 
   const current = nodes.find((n) => n.id === selId) ?? null;
 
@@ -117,11 +129,21 @@ export function GraphEditor() {
       },
       onRequestAdd: (fromId, at) => {
         const r = wrapRef.current?.getBoundingClientRect();
-        setPalette({ mode: "add", anchorId: fromId, x: at.x - (r?.left ?? 0), y: at.y - (r?.top ?? 0) });
+        setPalette({
+          mode: "add",
+          anchorId: fromId,
+          x: at.x - (r?.left ?? 0),
+          y: at.y - (r?.top ?? 0),
+        });
       },
       onRequestInsert: (edgeId, at) => {
         const r = wrapRef.current?.getBoundingClientRect();
-        setPalette({ mode: "insert", anchorId: edgeId, x: at.x - (r?.left ?? 0), y: at.y - (r?.top ?? 0) });
+        setPalette({
+          mode: "insert",
+          anchorId: edgeId,
+          x: at.x - (r?.left ?? 0),
+          y: at.y - (r?.top ?? 0),
+        });
       },
     }),
     [edit],
@@ -181,7 +203,10 @@ export function GraphEditor() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onSelect={setSelId}
+            onSelect={(id) => {
+              setSelId(id);
+              if (id === null) setPalette(null);
+            }}
           />
           {palette && (
             <div className="absolute z-20" style={{ left: palette.x, top: palette.y }}>
