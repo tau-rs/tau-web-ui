@@ -28,12 +28,12 @@ export function StepNode({ id, data, selected }: NodeProps<Node<StepNodeData>>) 
           <>
             <button
               type="button"
-              title="disable"
-              aria-label="disable"
+              title={data.disabled ? "enable" : "disable"}
+              aria-label={data.disabled ? "enable" : "disable"}
               className={tbtn}
               onClick={() => actions.onDisable(id)}
             >
-              ⏸
+              {data.disabled ? "▶" : "⏸"}
             </button>
             <button
               type="button"
