@@ -141,12 +141,17 @@ impl Credentials {
             .unwrap_or_default()
     }
     fn write_config(&self, c: &ConfigFile) -> std::io::Result<()> {
-        std::fs::write(self.config_path(), toml::to_string_pretty(c).unwrap_or_default())?;
+        // Propagate a serialization failure rather than truncating the file to "".
+        let text = toml::to_string_pretty(c)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        std::fs::write(self.config_path(), text)?;
         set_0600(&self.config_path());
         Ok(())
     }
     fn write_secrets(&self, s: &BTreeMap<String, String>) -> std::io::Result<()> {
-        std::fs::write(self.secrets_path(), serde_json::to_string_pretty(s).unwrap_or_default())?;
+        let text = serde_json::to_string_pretty(s)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        std::fs::write(self.secrets_path(), text)?;
         set_0600(&self.secrets_path());
         Ok(())
     }
@@ -332,11 +337,10 @@ mod store_tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(dir.path().join("credentials.secrets.json"))
-                .unwrap()
-                .permissions()
-                .mode();
-            assert_eq!(mode & 0o777, 0o600);
+            for f in ["credentials.secrets.json", "credentials.toml"] {
+                let mode = std::fs::metadata(dir.path().join(f)).unwrap().permissions().mode();
+                assert_eq!(mode & 0o777, 0o600, "{f} should be 0600");
+            }
         }
     }
 
