@@ -77,6 +77,7 @@ export function ProvidersPage() {
                   )}
                 </td>
                 <td className="px-3 py-2">
+                  {/* Gated until tau β.5 credentials chain; p.credentials_gated unused for now. */}
                   <button
                     type="button"
                     disabled
