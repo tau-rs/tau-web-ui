@@ -12,6 +12,8 @@ const nightly: WorkflowGraph = {
       agent: "researcher",
       tool: null,
       input: "${input}",
+      provider: null,
+      tools: [],
     },
     {
       id: "summarise",
@@ -20,6 +22,8 @@ const nightly: WorkflowGraph = {
       agent: "greeter",
       tool: null,
       input: "${steps.gather.output}",
+      provider: null,
+      tools: [],
     },
     {
       id: "save-results",
@@ -28,6 +32,8 @@ const nightly: WorkflowGraph = {
       agent: null,
       tool: "fs-write",
       input: "${steps.summarise.output}",
+      provider: null,
+      tools: [],
     },
   ],
   edges: [
@@ -46,6 +52,8 @@ const disconnected: WorkflowGraph = {
       agent: "researcher",
       tool: null,
       input: null,
+      provider: null,
+      tools: [],
     },
     {
       id: "render",
@@ -54,6 +62,8 @@ const disconnected: WorkflowGraph = {
       agent: null,
       tool: "fs-write",
       input: null,
+      provider: null,
+      tools: [],
     },
   ],
   edges: [],
@@ -67,6 +77,27 @@ describe("workflowToFlow", () => {
     expect(nodes[2].data.tool).toBe("fs-write");
     expect(edges).toHaveLength(2);
     expect(edges[0].id).toBe("gather->summarise");
+  });
+
+  it("passes provider and tools through to node data", () => {
+    const { nodes } = workflowToFlow({
+      workflow: "w",
+      nodes: [
+        {
+          id: "a",
+          kind: "agent.run",
+          label: "a",
+          agent: "researcher",
+          tool: null,
+          input: null,
+          provider: "anthropic",
+          tools: ["web-search", "fs-read"],
+        },
+      ],
+      edges: [],
+    });
+    expect(nodes[0].data.provider).toBe("anthropic");
+    expect(nodes[0].data.tools).toEqual(["web-search", "fs-read"]);
   });
 
   it("stacks disconnected nodes at depth 0", () => {

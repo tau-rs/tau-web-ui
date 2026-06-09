@@ -7,6 +7,8 @@ export interface StepNodeData extends Record<string, unknown> {
   agent: string | null;
   tool: string | null;
   input: string | null;
+  provider: string | null;
+  tools: string[];
 }
 
 const X_GAP = 220;
@@ -44,7 +46,15 @@ export function workflowToFlow(graph: WorkflowGraph): {
       id: n.id,
       type: "step",
       position: { x: d * X_GAP, y: order * Y_GAP },
-      data: { label: n.label, kind: n.kind, agent: n.agent, tool: n.tool, input: n.input },
+      data: {
+        label: n.label,
+        kind: n.kind,
+        agent: n.agent,
+        tool: n.tool,
+        input: n.input,
+        provider: n.provider,
+        tools: n.tools,
+      },
     };
   });
 

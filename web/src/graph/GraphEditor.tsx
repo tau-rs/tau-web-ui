@@ -73,6 +73,8 @@ export function GraphEditor() {
           agent: kind === "agent.run" ? "researcher" : null,
           tool: kind === "tool.call" ? "fs-write" : null,
           input: null,
+          provider: null,
+          tools: [],
         },
       },
     ]);
