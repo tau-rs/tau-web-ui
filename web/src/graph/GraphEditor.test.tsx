@@ -86,7 +86,7 @@ describe("GraphEditor", () => {
     await waitFor(() => expect(screen.getByText("gather")).toBeInTheDocument());
   });
 
-  it("toggles edit mode (local banner + add-step palette)", async () => {
+  it("toggles edit mode (local banner)", async () => {
     const user = userEvent.setup();
     render(<GraphEditor />);
     await waitFor(() =>
@@ -94,7 +94,6 @@ describe("GraphEditor", () => {
     );
     await user.click(screen.getByRole("button", { name: /^edit$/i }));
     expect(screen.getByText(/changes are local/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /\+ agent\.run/i })).toBeInTheDocument();
   });
 
   it("shows the provider pill (recommended) and tools in the inspector", async () => {

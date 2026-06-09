@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   applyNodeChanges,
   applyEdgeChanges,
@@ -15,6 +15,8 @@ import { getWorkflowGraph } from "../api/graph";
 import { getProviders } from "../api/providers";
 import { workflowToFlow, type StepNodeData } from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
+import { duplicateNode, toggleDisabled } from "./edit";
+import type { GraphActions } from "./GraphActions";
 
 export function GraphEditor() {
   const [workflows, setWorkflows] = useState<string[]>([]);
@@ -23,9 +25,6 @@ export function GraphEditor() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [edit, setEdit] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
-  // Monotonic id source for added steps — a ref so rapid clicks can't read a
-  // stale value and mint duplicate node ids.
-  const counter = useRef(0);
 
   const [recommended, setRecommended] = useState<string>("");
   useEffect(() => {
@@ -66,28 +65,6 @@ export function GraphEditor() {
   );
   const onConnect = useCallback((c: Connection) => setEdges((es) => addEdge(c, es)), []);
 
-  function addStep(kind: "agent.run" | "tool.call") {
-    counter.current += 1;
-    const id = `step-${counter.current}`;
-    setNodes((ns) => [
-      ...ns,
-      {
-        id,
-        type: "step",
-        position: { x: 40, y: 40 + ns.length * 20 },
-        data: {
-          label: id,
-          kind,
-          agent: kind === "agent.run" ? "researcher" : null,
-          tool: kind === "tool.call" ? "fs-write" : null,
-          input: null,
-          provider: null,
-          tools: [],
-        },
-      },
-    ]);
-  }
-
   const current = nodes.find((n) => n.id === selId) ?? null;
 
   function updateCurrent(patch: Partial<StepNodeData>) {
@@ -96,6 +73,28 @@ export function GraphEditor() {
       ns.map((n) => (n.id === current.id ? { ...n, data: { ...n.data, ...patch } } : n)),
     );
   }
+
+  const actions: GraphActions = useMemo(
+    () => ({
+      editable: edit,
+      onInspect: (id) => setSelId(id),
+      onDisable: (id) => setNodes((ns) => toggleDisabled(ns, id)),
+      onDuplicate: (id) =>
+        setNodes((ns) => {
+          const out = duplicateNode(ns, id);
+          if (out.newId) setSelId(out.newId);
+          return out.nodes;
+        }),
+      onDelete: (id) => {
+        setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+        setNodes((ns) => ns.filter((n) => n.id !== id));
+        setSelId((cur) => (cur === id ? null : cur));
+      },
+      onRequestAdd: () => {},
+      onRequestInsert: () => {},
+    }),
+    [edit],
+  );
 
   const inputCls = "mt-0.5 w-full rounded border border-border px-1.5 py-0.5 text-xs";
 
@@ -146,31 +145,13 @@ export function GraphEditor() {
           nodes={nodes}
           edges={edges}
           editable={edit}
+          actions={actions}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onSelect={setSelId}
         />
         <div className="space-y-2 text-xs">
-          {edit && (
-            <div className="space-y-1">
-              <div className="text-[9px] uppercase text-muted">add step</div>
-              <div className="flex flex-wrap gap-1">
-                <button
-                  onClick={() => addStep("agent.run")}
-                  className="rounded-md border border-accent/40 px-2 py-0.5 text-[10px] text-accent"
-                >
-                  + agent.run
-                </button>
-                <button
-                  onClick={() => addStep("tool.call")}
-                  className="rounded-md border border-st-running/40 px-2 py-0.5 text-[10px] text-st-running"
-                >
-                  + tool.call
-                </button>
-              </div>
-            </div>
-          )}
           <div className="text-[9px] uppercase text-muted">step</div>
           {current ? (
             edit ? (
