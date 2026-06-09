@@ -14,11 +14,13 @@ export const putCredential = (
   backend: string,
   body: { sources: SourceConfig[]; local_value?: string },
 ) =>
-  fetch(`/api/credentials/${backend}`, {
+  fetch(`/api/credentials/${encodeURIComponent(backend)}`, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   }).then(json<BackendCredentialStatus>);
 
 export const deleteCredential = (backend: string) =>
-  fetch(`/api/credentials/${backend}`, { method: "DELETE" }).then(json<{ ok: boolean }>);
+  fetch(`/api/credentials/${encodeURIComponent(backend)}`, { method: "DELETE" }).then(
+    json<{ ok: boolean }>,
+  );
