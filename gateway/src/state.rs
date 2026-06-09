@@ -531,8 +531,28 @@ impl AppState {
         self.0.check_source.report()
     }
 
+    /// Structural graph from the mock seam, enriched per `agent.run` node with the
+    /// agent's provider (its `llm_backend`, else the recommended backend) + tools.
     pub fn workflow_graph(&self, name: &str) -> WorkflowGraph {
-        self.0.graph_source.graph(name)
+        let mut g = self.0.graph_source.graph(name);
+        let recommended = self.recommended_backend();
+        for n in g.nodes.iter_mut() {
+            if n.kind != "agent.run" {
+                continue; // tool.call → provider = None, tools = [] (defaults)
+            }
+            let detail = n
+                .agent
+                .as_deref()
+                .and_then(|id| config::read_agent(&self.0.project, id).ok().flatten());
+            match detail {
+                Some(a) => {
+                    n.provider = Some(a.llm_backend.unwrap_or_else(|| recommended.clone()));
+                    n.tools = a.requires_tools.into_iter().map(|t| t.name).collect();
+                }
+                None => n.provider = Some(recommended.clone()),
+            }
+        }
+        g
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
@@ -543,12 +563,21 @@ impl AppState {
         config::read_agent(&self.0.project, id)
     }
 
-    pub fn providers(&self) -> Vec<Provider> {
-        let agent_backends: Vec<String> = config::read(&self.0.project)
+    /// The non-empty `llm_backend` of every agent in the project (real config).
+    fn agent_backends(&self) -> Vec<String> {
+        config::read(&self.0.project)
             .map(|c| c.agents.into_iter().filter_map(|a| a.llm_backend).collect())
-            .unwrap_or_default();
+            .unwrap_or_default()
+    }
+
+    /// The recommended backend for this project (modal agent backend, else "anthropic").
+    pub fn recommended_backend(&self) -> String {
+        providers::recommended_backend(&self.agent_backends())
+    }
+
+    pub fn providers(&self) -> Vec<Provider> {
         let package_names: Vec<String> = self.packages().into_iter().map(|p| p.name).collect();
-        providers::list_providers(&agent_backends, &package_names)
+        providers::list_providers(&self.agent_backends(), &package_names)
     }
 
     pub fn write_agent(&self, agent: &AgentDetail) -> Result<()> {

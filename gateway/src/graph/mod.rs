@@ -14,6 +14,8 @@ pub struct WorkflowNode {
     pub agent: Option<String>,
     pub tool: Option<String>,
     pub input: Option<String>,
+    pub provider: Option<String>, // agent.run: agent's llm_backend, else the recommended backend
+    pub tools: Vec<String>,       // agent.run: the agent's requires_tools names
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -51,6 +53,8 @@ fn node(
         agent: agent.map(|s| s.to_string()),
         tool: tool.map(|s| s.to_string()),
         input: input.map(|s| s.to_string()),
+        provider: None,
+        tools: vec![],
     }
 }
 

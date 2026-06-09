@@ -54,4 +54,11 @@ async fn workflow_graph_over_http() {
     assert_eq!(gather["kind"], "agent.run");
     let save = nodes.iter().find(|n| n["id"] == "save-results").unwrap();
     assert_eq!(save["kind"], "tool.call");
+
+    // composer enrichment: the agent.run node "gather" (agent "researcher", which
+    // has no llm_backend in the demo fixture) resolves to the recommended backend
+    // (anthropic) and no tools; the tool.call node has a null provider.
+    assert_eq!(gather["provider"], "anthropic");
+    assert!(gather["tools"].as_array().unwrap().is_empty());
+    assert_eq!(save["provider"], serde_json::Value::Null);
 }
