@@ -206,8 +206,7 @@ impl Credentials {
             if s.kind.gated() {
                 return Err(format!("source kind {:?} is gated in CR-1", s.kind));
             }
-            if matches!(s.kind, SourceKind::Env)
-                && s.reference.as_deref().unwrap_or("").is_empty()
+            if matches!(s.kind, SourceKind::Env) && s.reference.as_deref().unwrap_or("").is_empty()
             {
                 return Err("env source requires a non-empty ref".to_string());
             }
@@ -220,7 +219,8 @@ impl Credentials {
         let mut cfg = self.read_config();
         let mut secrets = self.read_secrets();
         let has_local_kind = sources.iter().any(|s| matches!(s.kind, SourceKind::Local));
-        cfg.backends.insert(backend.to_string(), BackendConfig { sources });
+        cfg.backends
+            .insert(backend.to_string(), BackendConfig { sources });
         match (has_local_kind, local_value) {
             (true, Some(v)) => {
                 secrets.insert(backend.to_string(), v);
@@ -261,7 +261,10 @@ mod resolver_tests {
     use super::*;
 
     fn src(kind: SourceKind, r: Option<&str>) -> SourceConfig {
-        SourceConfig { kind, reference: r.map(|s| s.to_string()) }
+        SourceConfig {
+            kind,
+            reference: r.map(|s| s.to_string()),
+        }
     }
     fn no_env(_: &str) -> Option<String> {
         None
@@ -284,7 +287,10 @@ mod resolver_tests {
 
     #[test]
     fn first_match_wins() {
-        let s = [src(SourceKind::Local, None), src(SourceKind::Env, Some("MY_KEY"))];
+        let s = [
+            src(SourceKind::Local, None),
+            src(SourceKind::Env, Some("MY_KEY")),
+        ];
         let getter = |k: &str| (k == "MY_KEY").then(|| "x".to_string());
         assert_eq!(resolve(&s, true, &getter), (true, Some(SourceKind::Local)));
         assert_eq!(resolve(&s, false, &getter), (true, Some(SourceKind::Env)));
@@ -310,7 +316,10 @@ mod store_tests {
     use super::*;
 
     fn cfg(kind: SourceKind, r: Option<&str>) -> SourceConfig {
-        SourceConfig { kind, reference: r.map(|s| s.to_string()) }
+        SourceConfig {
+            kind,
+            reference: r.map(|s| s.to_string()),
+        }
     }
 
     #[test]
@@ -318,7 +327,11 @@ mod store_tests {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
         let st = c
-            .put("anthropic", vec![cfg(SourceKind::Local, None)], Some("sk-secret".into()))
+            .put(
+                "anthropic",
+                vec![cfg(SourceKind::Local, None)],
+                Some("sk-secret".into()),
+            )
             .unwrap();
         assert!(st.resolved);
         assert_eq!(st.resolved_via, Some(SourceKind::Local));
@@ -333,12 +346,20 @@ mod store_tests {
     fn secrets_file_is_0600() {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
-        c.put("openai", vec![cfg(SourceKind::Local, None)], Some("v".into())).unwrap();
+        c.put(
+            "openai",
+            vec![cfg(SourceKind::Local, None)],
+            Some("v".into()),
+        )
+        .unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             for f in ["credentials.secrets.json", "credentials.toml"] {
-                let mode = std::fs::metadata(dir.path().join(f)).unwrap().permissions().mode();
+                let mode = std::fs::metadata(dir.path().join(f))
+                    .unwrap()
+                    .permissions()
+                    .mode();
                 assert_eq!(mode & 0o777, 0o600, "{f} should be 0600");
             }
         }
@@ -350,7 +371,10 @@ mod store_tests {
         let c = Credentials::new(dir.path().to_path_buf());
         c.put(
             "anthropic",
-            vec![cfg(SourceKind::Local, None), cfg(SourceKind::Env, Some("ANTHROPIC_API_KEY"))],
+            vec![
+                cfg(SourceKind::Local, None),
+                cfg(SourceKind::Env, Some("ANTHROPIC_API_KEY")),
+            ],
             Some("v".into()),
         )
         .unwrap();
@@ -358,7 +382,10 @@ mod store_tests {
         let st = &c2.status_all()[0];
         assert_eq!(st.sources.len(), 2);
         assert_eq!(st.sources[0].kind, SourceKind::Local);
-        assert_eq!(st.sources[1].reference.as_deref(), Some("ANTHROPIC_API_KEY"));
+        assert_eq!(
+            st.sources[1].reference.as_deref(),
+            Some("ANTHROPIC_API_KEY")
+        );
         c2.delete("anthropic").unwrap();
         assert!(c2.status_all().is_empty());
     }
@@ -367,9 +394,18 @@ mod store_tests {
     fn put_rejects_gated_and_duplicate_kinds() {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
-        assert!(c.put("x", vec![cfg(SourceKind::Vault, Some("p"))], None).is_err());
         assert!(c
-            .put("x", vec![cfg(SourceKind::Env, Some("A")), cfg(SourceKind::Env, Some("B"))], None)
+            .put("x", vec![cfg(SourceKind::Vault, Some("p"))], None)
+            .is_err());
+        assert!(c
+            .put(
+                "x",
+                vec![
+                    cfg(SourceKind::Env, Some("A")),
+                    cfg(SourceKind::Env, Some("B"))
+                ],
+                None
+            )
             .is_err());
         assert!(c.put("x", vec![cfg(SourceKind::Env, None)], None).is_err());
     }
@@ -378,9 +414,18 @@ mod store_tests {
     fn dropping_local_source_clears_the_secret() {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
-        c.put("anthropic", vec![cfg(SourceKind::Local, None)], Some("v".into())).unwrap();
+        c.put(
+            "anthropic",
+            vec![cfg(SourceKind::Local, None)],
+            Some("v".into()),
+        )
+        .unwrap();
         let st = c
-            .put("anthropic", vec![cfg(SourceKind::Env, Some("DEFINITELY_UNSET_VAR_XZ"))], None)
+            .put(
+                "anthropic",
+                vec![cfg(SourceKind::Env, Some("DEFINITELY_UNSET_VAR_XZ"))],
+                None,
+            )
             .unwrap();
         assert!(!st.resolved);
     }

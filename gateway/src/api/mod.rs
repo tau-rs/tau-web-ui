@@ -4,6 +4,7 @@
 pub mod agents;
 pub mod checks;
 pub mod config;
+pub mod credentials;
 pub mod graph;
 pub mod meta;
 pub mod packages;
@@ -20,7 +21,7 @@ pub mod ws;
 
 use crate::projects::ProjectRegistry;
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 
@@ -68,6 +69,11 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/api/projects", get(projects::list).post(projects::add))
         .route("/api/projects/runs", get(projects::cross_runs))
         .route("/api/workspace/save-as", post(projects::save_as))
+        .route("/api/credentials", get(credentials::list))
+        .route(
+            "/api/credentials/:backend",
+            put(credentials::put).delete(credentials::remove),
+        )
         .nest("/api/projects/:pid", scoped)
         .with_state(reg)
 }

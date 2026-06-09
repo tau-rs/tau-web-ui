@@ -126,6 +126,11 @@ impl ProjectRegistry {
         Ok(reg)
     }
 
+    /// The global credential store, bound to this gateway's data root.
+    pub fn credentials(&self) -> crate::credentials::Credentials {
+        crate::credentials::Credentials::new(self.0.data_root.clone())
+    }
+
     fn manifest_path(&self) -> PathBuf {
         self.0.data_root.join("projects.json")
     }
