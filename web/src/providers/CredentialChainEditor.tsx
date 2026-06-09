@@ -43,6 +43,7 @@ export function CredentialChainEditor({
   );
   const [localValue, setLocalValue] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const hasLocal = rows.some((r) => r.kind === "local");
   const used = new Set(rows.map((r) => r.kind));
 
@@ -60,7 +61,9 @@ export function CredentialChainEditor({
     });
 
   async function save() {
+    if (saving) return;
     setError("");
+    setSaving(true);
     const sources: SourceConfig[] = rows.map((r) => ({
       kind: r.kind,
       ref: r.kind === "env" ? r.ref : null,
@@ -74,6 +77,8 @@ export function CredentialChainEditor({
       onSaved();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -184,9 +189,10 @@ export function CredentialChainEditor({
         <button
           type="button"
           onClick={save}
-          className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-fg"
+          disabled={saving}
+          className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-accent-fg disabled:opacity-60"
         >
-          Save
+          {saving ? "Saving…" : "Save"}
         </button>
         {status &&
           (status.resolved ? (
