@@ -283,3 +283,22 @@ test("workflows: graph shows provider pill on an agent node + a minimap", async 
   // Save → IR remains gated
   await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
 });
+
+test("workflows: edit mode adds a step via the inline + and palette", async ({ page }) => {
+  await page.goto("/projects/demo/workflows");
+  await expect(page.locator(".react-flow__node").first()).toBeVisible({ timeout: 5000 });
+  const before = await page.locator(".react-flow__node").count();
+  // enter edit mode
+  await page.getByRole("button", { name: /^edit$/i }).click();
+  // hover the first node to reveal its inline "+", then click it
+  const node = page.locator(".react-flow__node").first();
+  await node.hover();
+  await node.getByRole("button", { name: "add next step" }).click();
+  // the searchable palette opens; pick agent.run
+  await expect(page.getByRole("dialog", { name: "add step" })).toBeVisible();
+  await page.getByRole("button", { name: "agent.run" }).click();
+  // a node was added
+  await expect(page.locator(".react-flow__node")).toHaveCount(before + 1);
+  // Save → IR stays gated
+  await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+});

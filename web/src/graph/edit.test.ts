@@ -15,10 +15,23 @@ function n(id: string, x = 0, y = 0): Node<StepNodeData> {
     id,
     type: "step",
     position: { x, y },
-    data: { label: id, kind: "agent.run", agent: "researcher", tool: null, input: null, provider: "anthropic", tools: [] },
+    data: {
+      label: id,
+      kind: "agent.run",
+      agent: "researcher",
+      tool: null,
+      input: null,
+      provider: "anthropic",
+      tools: [],
+    },
   };
 }
-const e = (source: string, target: string): Edge => ({ id: `${source}->${target}`, source, target, type: "step" });
+const e = (source: string, target: string): Edge => ({
+  id: `${source}->${target}`,
+  source,
+  target,
+  type: "step",
+});
 
 describe("edit helpers", () => {
   it("nextStepId returns step-(max+1)", () => {
@@ -44,13 +57,25 @@ describe("edit helpers", () => {
   });
 
   it("addNextStep with a specific agent presets it", () => {
-    const { nodes } = addNextStep([n("a")], [], "a", { kind: "agent.run", agent: "greeter" }, "anthropic");
+    const { nodes } = addNextStep(
+      [n("a")],
+      [],
+      "a",
+      { kind: "agent.run", agent: "greeter" },
+      "anthropic",
+    );
     expect(nodes[1].data.agent).toBe("greeter");
   });
 
   it("addNextStep on a missing source is a no-op", () => {
     const before = { nodes: [n("a")], edges: [] as Edge[] };
-    const after = addNextStep(before.nodes, before.edges, "nope", { kind: "agent.run" }, "anthropic");
+    const after = addNextStep(
+      before.nodes,
+      before.edges,
+      "nope",
+      { kind: "agent.run" },
+      "anthropic",
+    );
     expect(after.nodes).toHaveLength(1);
     expect(after.edges).toHaveLength(0);
   });
@@ -67,7 +92,13 @@ describe("edit helpers", () => {
   });
 
   it("insertStepOnEdge on a missing edge is a no-op", () => {
-    const out = insertStepOnEdge([n("a")], [e("a", "b")], "x->y", { kind: "agent.run" }, "anthropic");
+    const out = insertStepOnEdge(
+      [n("a")],
+      [e("a", "b")],
+      "x->y",
+      { kind: "agent.run" },
+      "anthropic",
+    );
     expect(out.nodes).toHaveLength(1);
     expect(out.edges).toHaveLength(1);
   });

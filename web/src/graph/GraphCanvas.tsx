@@ -38,24 +38,24 @@ export function GraphCanvas({
   return (
     <GraphActionsContext.Provider value={actions}>
       <div className="relative h-[420px] w-full rounded-md border border-border">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        nodesDraggable={editable}
-        nodesConnectable={editable}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={(_, n) => onSelect(n.id)}
-        onPaneClick={() => onSelect(null)}
-      >
-        <Background />
-        <MiniMap pannable zoomable className="!bg-surface" />
-        <Controls />
-      </ReactFlow>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          nodesDraggable={editable}
+          nodesConnectable={editable}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={(_, n) => onSelect(n.id)}
+          onPaneClick={() => onSelect(null)}
+        >
+          <Background />
+          <MiniMap pannable zoomable className="!bg-surface" />
+          <Controls />
+        </ReactFlow>
       </div>
     </GraphActionsContext.Provider>
   );
