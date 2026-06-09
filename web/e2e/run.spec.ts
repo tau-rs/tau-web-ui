@@ -262,14 +262,16 @@ test("agents: provider combobox shows the recommended provider", async ({ page }
   await expect(page.getByLabel("llm backend")).toHaveValue("anthropic");
 });
 
-test("providers: screen lists anthropic installed with a gated Set API key", async ({ page }) => {
+test("providers: screen lists anthropic installed with a set-credential affordance", async ({
+  page,
+}) => {
   await page.goto("/projects/demo/providers");
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible({ timeout: 5000 });
-  // the anthropic row: installed + recommended, and a disabled (gated) Set API key
+  // the anthropic row: installed + recommended, and an inline "set credential" toggle
   const row = page.getByRole("row").filter({ hasText: "anthropic" });
   await expect(row.getByText("✓ installed")).toBeVisible();
   await expect(row.getByText("✓ recommended")).toBeVisible();
-  await expect(row.getByRole("button", { name: /Set API key/i })).toBeDisabled();
+  await expect(row.getByRole("button", { name: "set credential" })).toBeVisible();
 });
 
 test("workflows: graph shows provider pill on an agent node + a minimap", async ({ page }) => {
@@ -282,6 +284,23 @@ test("workflows: graph shows provider pill on an agent node + a minimap", async 
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
   // Save → IR remains gated
   await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+});
+
+test("providers: set a Local credential via the inline chain editor", async ({ page }) => {
+  await page.goto("/projects/demo/providers");
+  const row = page.getByRole("row").filter({ hasText: "anthropic" });
+  await expect(row).toBeVisible({ timeout: 5000 });
+  // open the chain editor for anthropic
+  await row.getByRole("button", { name: "set credential" }).click();
+  await expect(page.getByText(/credential chain — anthropic/i)).toBeVisible();
+  // a gated source is disabled
+  await expect(page.getByRole("button", { name: "Vault" })).toBeDisabled();
+  // add a Local source, type a value, save
+  await page.getByRole("button", { name: "Local" }).click();
+  await page.getByLabel("local secret value").fill("sk-demo");
+  await page.getByRole("button", { name: /^save$/i }).click();
+  // the row badge flips to "✓ via local"
+  await expect(row.getByText(/✓ via local/i)).toBeVisible();
 });
 
 test("workflows: edit mode adds a step via the inline + and palette", async ({ page }) => {
