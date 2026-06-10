@@ -14,14 +14,25 @@ const KIND_LABEL: Record<SourceKind, string> = {
   token_broker: "Token broker",
   workload_identity: "Workload identity",
 };
-const ADDABLE_KINDS: SourceKind[] = ["env", "local", "vault", "aws_kv", "gcp_kv", "azure_kv"];
-const GATED_KINDS: SourceKind[] = ["token_broker", "workload_identity"];
+const ADDABLE_KINDS: SourceKind[] = [
+  "env",
+  "local",
+  "vault",
+  "aws_kv",
+  "gcp_kv",
+  "azure_kv",
+  "token_broker",
+  "workload_identity",
+];
+// kinds the gateway does NOT resolve — tau resolves them at runtime (shown neutrally)
+const RUNTIME_RESOLVED: SourceKind[] = ["token_broker", "workload_identity"];
 const KIND_PLACEHOLDER: Partial<Record<SourceKind, string>> = {
   env: "ANTHROPIC_API_KEY",
   vault: "secret/data/anthropic",
   aws_kv: "prod/anthropic-key",
   gcp_kv: "projects/PROJECT/secrets/anthropic",
   azure_kv: "anthropic",
+  token_broker: "https://gateway.ai.cloudflare.com/v1/…",
 };
 
 interface Row {
@@ -67,7 +78,7 @@ export function CredentialChainEditor({
     setSaving(true);
     const sources: SourceConfig[] = rows.map((r) => ({
       kind: r.kind,
-      ref: r.kind === "local" ? null : r.ref,
+      ref: r.kind === "local" || r.kind === "workload_identity" ? null : r.ref,
     }));
     try {
       await putCredential(backend, {
@@ -118,6 +129,10 @@ export function CredentialChainEditor({
               <span className={`${chip} border-accent/40 text-accent`}>{KIND_LABEL[r.kind]}</span>
               {r.kind === "local" ? (
                 <span className="flex-1 text-[10px] text-muted">resolves from the local store</span>
+              ) : r.kind === "workload_identity" ? (
+                <span className="flex-1 text-[10px] text-muted">
+                  uses this machine&apos;s ambient identity
+                </span>
               ) : (
                 <input
                   aria-label={`${KIND_LABEL[r.kind]} ref ${i}`}
@@ -127,9 +142,14 @@ export function CredentialChainEditor({
                   className={`flex-1 font-mono ${field}`}
                 />
               )}
-              {st && !st.configured && st.detail && (
-                <span className="flex-none text-[9px] text-amber-700">⚠ {st.detail}</span>
-              )}
+              {st &&
+                !st.configured &&
+                st.detail &&
+                (RUNTIME_RESOLVED.includes(r.kind) ? (
+                  <span className="flex-none text-[9px] text-accent">↗ {st.detail}</span>
+                ) : (
+                  <span className="flex-none text-[9px] text-amber-700">⚠ {st.detail}</span>
+                ))}
               <button
                 type="button"
                 aria-label={`remove ${KIND_LABEL[r.kind]}`}
@@ -172,19 +192,6 @@ export function CredentialChainEditor({
             onClick={() => add(k)}
             className="rounded border border-accent/40 px-1.5 py-0.5 text-[10px] text-accent hover:bg-accent/10"
           >
-            {KIND_LABEL[k]}
-          </button>
-        ))}
-        {GATED_KINDS.map((k) => (
-          <button
-            key={k}
-            type="button"
-            disabled
-            aria-label={KIND_LABEL[k]}
-            title="waits on CR-3"
-            className="cursor-not-allowed rounded border border-border px-1.5 py-0.5 text-[10px] text-muted opacity-60"
-          >
-            <span aria-hidden="true">🔒 </span>
             {KIND_LABEL[k]}
           </button>
         ))}

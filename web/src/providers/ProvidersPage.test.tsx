@@ -22,7 +22,7 @@ const providers = [
 const credentials = [
   {
     backend: "anthropic",
-    sources: [{ kind: "local", ref: null, configured: true, gated: false }],
+    sources: [{ kind: "local", ref: null, configured: true }],
     resolved: true,
     resolved_via: "local",
   },
