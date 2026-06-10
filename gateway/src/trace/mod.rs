@@ -239,8 +239,9 @@ mod tests {
 
     #[test]
     fn export_bindings() {
-        Run::export_all().expect("export Run + deps");
-        Span::export_all().expect("export Span + deps");
-        WsMessage::export_all().expect("export WsMessage + deps");
+        let cfg = ts_rs::Config::from_env();
+        Run::export_all(&cfg).expect("export Run + deps");
+        Span::export_all(&cfg).expect("export Span + deps");
+        WsMessage::export_all(&cfg).expect("export WsMessage + deps");
     }
 }
