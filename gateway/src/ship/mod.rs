@@ -87,13 +87,36 @@ fn targets() -> Vec<Target> {
         adapter_family: fam.into(),
         tier: tier.into(),
         status: status.into(),
-        required_shapes: vec!["fs.r".into(), "fs.w".into(), "exec".into(), "net.http".into()],
+        required_shapes: vec![
+            "fs.r".into(),
+            "fs.w".into(),
+            "exec".into(),
+            "net.http".into(),
+        ],
     };
     vec![
-        t("darwin-native-strict", "darwin", "native", "strict", "available"),
-        t("linux-native-strict", "linux", "native", "strict", "available"),
+        t(
+            "darwin-native-strict",
+            "darwin",
+            "native",
+            "strict",
+            "available",
+        ),
+        t(
+            "linux-native-strict",
+            "linux",
+            "native",
+            "strict",
+            "available",
+        ),
         t("passthrough", "any", "passthrough", "none", "available"),
-        t("windows-native-strict", "windows", "native", "strict", "reserved"),
+        t(
+            "windows-native-strict",
+            "windows",
+            "native",
+            "strict",
+            "reserved",
+        ),
     ]
 }
 
@@ -131,7 +154,10 @@ impl ShipSource for MockShip {
             .find(|t| t.triple == target)
             .ok_or_else(|| BuildError::Invalid(format!("unknown target '{target}'")))?;
         if t.status != "available" {
-            return Err(BuildError::Invalid(format!("target '{target}' is {}", t.status)));
+            return Err(BuildError::Invalid(format!(
+                "target '{target}' is {}",
+                t.status
+            )));
         }
         let bundle = Bundle {
             path: format!("{}.tau", self.project),
@@ -202,7 +228,11 @@ fn parse_targets_jsonl(stdout: &str) -> Vec<Target> {
             status: v["status"].as_str().unwrap_or("unknown").to_string(),
             required_shapes: v["required_shapes"]
                 .as_array()
-                .map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|s| s.as_str().map(String::from))
+                        .collect()
+                })
                 .unwrap_or_default(),
         })
         .collect()
@@ -233,8 +263,8 @@ fn parse_build_result(
 
 fn parse_verify_json(stdout: &str) -> Result<VerifyOutcome, BuildError> {
     let line = stdout.trim().lines().last().unwrap_or("");
-    let v: serde_json::Value =
-        serde_json::from_str(line).map_err(|e| BuildError::Internal(format!("unparseable verify output: {e}")))?;
+    let v: serde_json::Value = serde_json::from_str(line)
+        .map_err(|e| BuildError::Internal(format!("unparseable verify output: {e}")))?;
     Ok(VerifyOutcome {
         reproducible: v["reproducible"].as_bool().unwrap_or(false),
         shipped_sha256: v["shipped_sha256"].as_str().unwrap_or("").to_string(),
@@ -320,8 +350,12 @@ mod tests {
     fn mock_seeds_targets_and_bundles() {
         let s = MockShip::new("demo".into());
         let ts = s.list_targets();
-        assert!(ts.iter().any(|t| t.triple == "darwin-native-strict" && t.status == "available"));
-        assert!(ts.iter().any(|t| t.triple == "windows-native-strict" && t.status == "reserved"));
+        assert!(ts
+            .iter()
+            .any(|t| t.triple == "darwin-native-strict" && t.status == "available"));
+        assert!(ts
+            .iter()
+            .any(|t| t.triple == "windows-native-strict" && t.status == "reserved"));
         assert!(!s.list_bundles().is_empty());
     }
 
@@ -338,7 +372,10 @@ mod tests {
     #[test]
     fn build_rejects_reserved_and_unknown() {
         let s = MockShip::new("demo".into());
-        assert!(matches!(s.build("windows-native-strict"), Err(BuildError::Invalid(_))));
+        assert!(matches!(
+            s.build("windows-native-strict"),
+            Err(BuildError::Invalid(_))
+        ));
         assert!(matches!(s.build("nope"), Err(BuildError::Invalid(_))));
     }
 
@@ -358,17 +395,23 @@ mod tests {
         let jsonl = include_str!("../../tests/fixtures/tau-json/targets.jsonl");
         let ts = parse_targets_jsonl(jsonl);
         assert_eq!(ts.len(), 4);
-        let darwin = ts.iter().find(|t| t.triple == "darwin-native-strict").unwrap();
+        let darwin = ts
+            .iter()
+            .find(|t| t.triple == "darwin-native-strict")
+            .unwrap();
         assert_eq!(darwin.platform, "darwin");
         assert_eq!(darwin.adapter_family, "native");
         assert_eq!(darwin.status, "available");
-        assert!(ts.iter().any(|t| t.triple == "windows-native-strict" && t.status == "reserved"));
+        assert!(ts
+            .iter()
+            .any(|t| t.triple == "windows-native-strict" && t.status == "reserved"));
         assert!(darwin.required_shapes.contains(&"exec".to_string()));
     }
 
     #[test]
     fn parse_verify_reads_reproducibility() {
-        let line = r#"{"reproducible":true,"shipped_sha256":"aa","rebuilt_sha256":"aa","diffs":[]}"#;
+        let line =
+            r#"{"reproducible":true,"shipped_sha256":"aa","rebuilt_sha256":"aa","diffs":[]}"#;
         let v = parse_verify_json(line).unwrap();
         assert!(v.reproducible);
         assert_eq!(v.shipped_sha256, "aa");

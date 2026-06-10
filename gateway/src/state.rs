@@ -118,7 +118,11 @@ impl AppState {
         let check_source: Box<dyn CheckSource> = if is_mock {
             Box::new(checks::MockChecks)
         } else {
-            Box::new(checks::CliChecks::new(bin.clone(), project.clone(), no_sandbox))
+            Box::new(checks::CliChecks::new(
+                bin.clone(),
+                project.clone(),
+                no_sandbox,
+            ))
         };
         let graph_source: Box<dyn WorkflowGraphSource> = if is_mock {
             Box::new(graph::MockGraph)
@@ -551,7 +555,10 @@ impl AppState {
         self.0.ship_source.build(target)
     }
 
-    pub fn verify(&self, bundle_path: &str) -> Result<crate::ship::VerifyOutcome, crate::ship::BuildError> {
+    pub fn verify(
+        &self,
+        bundle_path: &str,
+    ) -> Result<crate::ship::VerifyOutcome, crate::ship::BuildError> {
         self.0.ship_source.verify(bundle_path)
     }
 

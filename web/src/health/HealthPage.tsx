@@ -119,12 +119,12 @@ export function HealthPage() {
                 <td className="px-2 py-1 font-mono text-accent">{f.rule}</td>
                 <td className="px-2 py-1">
                   {f.summary}
-                  {f.remediation && (
-                    <div className="text-[10px] text-muted">↳ {f.remediation}</div>
-                  )}
+                  {f.remediation && <div className="text-[10px] text-muted">↳ {f.remediation}</div>}
                 </td>
                 <td className="px-2 py-1 font-mono text-muted">
-                  {f.location ? `${f.location.path}${f.location.line ? `:${f.location.line}` : ""}` : "—"}
+                  {f.location
+                    ? `${f.location.path}${f.location.line ? `:${f.location.line}` : ""}`
+                    : "—"}
                 </td>
               </tr>
             ))}

@@ -18,9 +18,9 @@ pub struct FindingLocation {
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct CheckFinding {
-    pub category: String,  // config|lockfile|packages|sandbox|plugins|skills
-    pub severity: String,  // error | needs-setup | warning
-    pub rule: String,      // tau's rule_id
+    pub category: String, // config|lockfile|packages|sandbox|plugins|skills
+    pub severity: String, // error | needs-setup | warning
+    pub rule: String,     // tau's rule_id
     pub summary: String,
     pub detail: Option<String>,
     pub remediation: Option<String>,
@@ -59,7 +59,12 @@ pub trait CheckSource: Send + Sync {
 }
 
 fn cat(name: &str, errors: u32, warnings: u32, needs_setup: u32) -> CategoryStatus {
-    CategoryStatus { name: name.into(), errors, warnings, needs_setup }
+    CategoryStatus {
+        name: name.into(),
+        errors,
+        warnings,
+        needs_setup,
+    }
 }
 
 fn finding(
@@ -77,7 +82,10 @@ fn finding(
         summary: summary.into(),
         detail: None,
         remediation: remediation.map(|s| s.to_string()),
-        location: location.map(|(p, l)| FindingLocation { path: p.into(), line: l }),
+        location: location.map(|(p, l)| FindingLocation {
+            path: p.into(),
+            line: l,
+        }),
     }
 }
 
@@ -96,13 +104,17 @@ impl CheckSource for MockChecks {
             ],
             findings: vec![
                 finding(
-                    "config", "error", "tau.config.endpoint",
+                    "config",
+                    "error",
+                    "tau.config.endpoint",
                     "inference.endpoint not set",
                     Some("set inference.endpoint in tau.toml"),
                     Some(("tau.toml", Some(3))),
                 ),
                 finding(
-                    "lockfile", "needs-setup", "tau.lockfile.missing",
+                    "lockfile",
+                    "needs-setup",
+                    "tau.lockfile.missing",
                     "no lockfile — packages not installed",
                     Some("run `tau install`"),
                     None,
@@ -144,17 +156,27 @@ fn parse_check_jsonl(stdout: &str, no_sandbox: bool) -> CheckReport {
                 "needs-setup" => needs_setup += 1,
                 _ => warnings += 1,
             }
-            let location = fv.get("location").and_then(|l| l.as_object()).map(|l| FindingLocation {
-                path: l.get("path").and_then(|p| p.as_str()).unwrap_or("").to_string(),
-                line: l.get("line").and_then(|n| n.as_u64()).map(|n| n as u32),
-            });
+            let location =
+                fv.get("location")
+                    .and_then(|l| l.as_object())
+                    .map(|l| FindingLocation {
+                        path: l
+                            .get("path")
+                            .and_then(|p| p.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        line: l.get("line").and_then(|n| n.as_u64()).map(|n| n as u32),
+                    });
             findings.push(CheckFinding {
                 category: name.clone(),
                 severity,
                 rule: fv["rule_id"].as_str().unwrap_or("").to_string(),
                 summary: fv["summary"].as_str().unwrap_or("").to_string(),
                 detail: fv.get("detail").and_then(|d| d.as_str()).map(String::from),
-                remediation: fv.get("remediation").and_then(|r| r.as_str()).map(String::from),
+                remediation: fv
+                    .get("remediation")
+                    .and_then(|r| r.as_str())
+                    .map(String::from),
                 location,
             });
         }
@@ -173,9 +195,18 @@ fn parse_check_jsonl(stdout: &str, no_sandbox: bool) -> CheckReport {
                 sandbox.tier = t.to_string();
             }
         }
-        categories.push(CategoryStatus { name, errors, warnings, needs_setup });
+        categories.push(CategoryStatus {
+            name,
+            errors,
+            warnings,
+            needs_setup,
+        });
     }
-    CheckReport { categories, findings, sandbox }
+    CheckReport {
+        categories,
+        findings,
+        sandbox,
+    }
 }
 
 /// Shells `tau check --json` and parses the result. Non-zero exit (findings) is data.
@@ -187,7 +218,11 @@ pub struct CliChecks {
 
 impl CliChecks {
     pub fn new(bin: PathBuf, project: PathBuf, no_sandbox: bool) -> Self {
-        Self { bin, project, no_sandbox }
+        Self {
+            bin,
+            project,
+            no_sandbox,
+        }
     }
 }
 
@@ -253,13 +288,27 @@ mod tests {
     fn parse_check_jsonl_maps_findings_and_categories() {
         let jsonl = include_str!("../../tests/fixtures/tau-json/check-demo.jsonl");
         let report = parse_check_jsonl(jsonl, false);
-        let config = report.categories.iter().find(|c| c.name == "config").unwrap();
-        assert_eq!((config.errors, config.warnings, config.needs_setup), (1, 0, 0));
-        let f = report.findings.iter().find(|f| f.severity == "error").unwrap();
+        let config = report
+            .categories
+            .iter()
+            .find(|c| c.name == "config")
+            .unwrap();
+        assert_eq!(
+            (config.errors, config.warnings, config.needs_setup),
+            (1, 0, 0)
+        );
+        let f = report
+            .findings
+            .iter()
+            .find(|f| f.severity == "error")
+            .unwrap();
         assert_eq!(f.rule, "tau.config.invalid");
         assert_eq!(f.category, "config");
         assert_eq!(f.location.as_ref().unwrap().path, "/p/tau.toml");
-        assert_eq!(f.remediation.as_deref(), Some("fix tau.toml per the error message above"));
+        assert_eq!(
+            f.remediation.as_deref(),
+            Some("fix tau.toml per the error message above")
+        );
         assert_eq!(report.categories.len(), 6);
         assert!(!report.sandbox.no_sandbox);
     }
