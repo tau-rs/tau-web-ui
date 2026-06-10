@@ -95,6 +95,12 @@ async fn main() -> anyhow::Result<()> {
                     .unwrap_or("greeter")
                     .to_string();
                 let prompt = req["params"]["prompt"].as_str().unwrap_or("").to_string();
+                if agent == "boom" {
+                    // Deterministic LLM_ERROR for failure-path tests.
+                    write_line(&mut *out.lock().await, &err_response(&id, -32008, "llm boom"))
+                        .await?;
+                    continue;
+                }
                 let id_str = id.to_string();
                 let out = out.clone();
                 let cancelled = cancelled.clone();
