@@ -4,7 +4,7 @@
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::Path;
 use axum::response::IntoResponse;
-use futures::StreamExt;
+use futures::{SinkExt, StreamExt};
 
 use crate::api::scope::Scoped;
 use crate::state::AppState;
@@ -54,5 +54,5 @@ async fn handle(mut socket: WebSocket, state: AppState, run_id: String) {
 
 async fn send(socket: &mut WebSocket, m: &WsMessage) -> Result<(), axum::Error> {
     let txt = serde_json::to_string(m).unwrap();
-    socket.send(Message::Text(txt)).await
+    socket.send(Message::Text(txt.into())).await
 }

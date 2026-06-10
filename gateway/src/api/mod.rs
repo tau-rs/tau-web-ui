@@ -1,4 +1,4 @@
-//! HTTP/WS API surface. Per-project routes are nested under `/api/projects/:pid`
+//! HTTP/WS API surface. Per-project routes are nested under `/api/projects/{pid}`
 //! and resolve their `AppState` via the `Scoped` extractor; global routes operate
 //! on the `ProjectRegistry` directly.
 pub mod agents;
@@ -32,29 +32,29 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/project", get(meta::project))
         .route("/project/config", get(config::get).put(config::put))
         .route("/runs", post(runs::launch).get(runs::list))
-        .route("/runs/:id", get(runs::get_one))
-        .route("/runs/:id/cancel", post(runs::cancel))
-        .route("/runs/:id/events", get(ws::ws_handler))
+        .route("/runs/{id}", get(runs::get_one))
+        .route("/runs/{id}/cancel", post(runs::cancel))
+        .route("/runs/{id}/events", get(ws::ws_handler))
         .route("/workflows", get(workflows::list))
         .route("/workflows/run", post(workflows::run))
-        .route("/workflows/:name/graph", get(graph::graph))
+        .route("/workflows/{name}/graph", get(graph::graph))
         .route("/packages", get(packages::list))
         .route("/packages/install", post(packages::install))
         .route("/packages/resolve", post(packages::resolve))
         .route("/packages/verify", post(packages::verify))
-        .route("/packages/:name", delete(packages::uninstall))
-        .route("/packages/:name/update", post(packages::update))
+        .route("/packages/{name}", delete(packages::uninstall))
+        .route("/packages/{name}/update", post(packages::update))
         .route("/providers", get(providers::list))
         .route("/agents", get(agents::list))
         .route("/agents/import", post(agents::import))
         .route(
-            "/agents/:id",
+            "/agents/{id}",
             get(agents::get_one).put(agents::put).delete(agents::remove),
         )
         .route("/skills", get(skills::list))
         .route("/skills/import", post(skills::import))
         .route(
-            "/skills/:name",
+            "/skills/{name}",
             get(skills::get_one).put(skills::put).delete(skills::remove),
         )
         .route("/tools", get(tools::list))
@@ -71,9 +71,9 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/api/workspace/save-as", post(projects::save_as))
         .route("/api/credentials", get(credentials::list))
         .route(
-            "/api/credentials/:backend",
+            "/api/credentials/{backend}",
             put(credentials::put).delete(credentials::remove),
         )
-        .nest("/api/projects/:pid", scoped)
+        .nest("/api/projects/{pid}", scoped)
         .with_state(reg)
 }

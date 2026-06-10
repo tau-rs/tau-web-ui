@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 
 use axum::{
-    async_trait,
     extract::{FromRequestParts, Path},
     http::{request::Parts, StatusCode},
 };
@@ -14,7 +13,6 @@ use crate::state::AppState;
 
 pub struct Scoped(pub AppState);
 
-#[async_trait]
 impl FromRequestParts<ProjectRegistry> for Scoped {
     type Rejection = (StatusCode, String);
 
