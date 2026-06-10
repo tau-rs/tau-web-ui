@@ -111,6 +111,8 @@ pub fn source_detail(
     let ref_empty = s.reference.as_deref().map(|r| r.is_empty()).unwrap_or(true);
     match s.kind {
         SourceKind::Local => Some("no value stored".to_string()),
+        // Always Some for these two — the gateway never resolves them, so this
+        // doubles as the UI's "↗ resolved by tau at runtime" label.
         SourceKind::TokenBroker | SourceKind::WorkloadIdentity => {
             Some("resolved by tau at runtime".to_string())
         }
@@ -378,8 +380,14 @@ mod resolver_tests {
         // the gateway never resolves these — resolution is tau's at runtime
         assert!(!source_configured(&tb, true, &no_env));
         assert!(!source_configured(&wi, true, &no_env));
-        assert_eq!(source_detail(&tb, false, &no_env).as_deref(), Some("resolved by tau at runtime"));
-        assert_eq!(source_detail(&wi, false, &no_env).as_deref(), Some("resolved by tau at runtime"));
+        assert_eq!(
+            source_detail(&tb, false, &no_env).as_deref(),
+            Some("resolved by tau at runtime")
+        );
+        assert_eq!(
+            source_detail(&wi, false, &no_env).as_deref(),
+            Some("resolved by tau at runtime")
+        );
         // a chain of only these resolves to nothing in the gateway
         assert_eq!(resolve(&[tb, wi], true, &no_env), (false, None));
     }
@@ -534,20 +542,46 @@ mod store_tests {
         let c = Credentials::new(dir.path().to_path_buf());
         // duplicate kind → rejected
         assert!(c
-            .put("x", vec![cfg(SourceKind::Env, Some("A")), cfg(SourceKind::Env, Some("B"))], None)
+            .put(
+                "x",
+                vec![
+                    cfg(SourceKind::Env, Some("A")),
+                    cfg(SourceKind::Env, Some("B"))
+                ],
+                None
+            )
             .is_err());
         // empty ref on a ref-required kind → rejected (Env, SecretManager, TokenBroker)
         assert!(c.put("x", vec![cfg(SourceKind::Env, None)], None).is_err());
-        assert!(c.put("x", vec![cfg(SourceKind::Vault, None)], None).is_err());
-        assert!(c.put("x", vec![cfg(SourceKind::TokenBroker, None)], None).is_err());
+        assert!(c
+            .put("x", vec![cfg(SourceKind::Vault, None)], None)
+            .is_err());
+        assert!(c
+            .put("x", vec![cfg(SourceKind::TokenBroker, None)], None)
+            .is_err());
         // accepted: SecretManager with a ref, TokenBroker with a URL, ref-less WorkloadIdentity
-        let v = c.put("a", vec![cfg(SourceKind::Vault, Some("secret/x"))], None).unwrap();
+        let v = c
+            .put("a", vec![cfg(SourceKind::Vault, Some("secret/x"))], None)
+            .unwrap();
         assert_eq!(v.sources[0].kind, SourceKind::Vault);
         assert!(!v.sources[0].configured);
         assert!(v.sources[0].detail.is_some());
-        assert!(c.put("b", vec![cfg(SourceKind::TokenBroker, Some("https://b"))], None).is_ok());
-        let wi = c.put("c", vec![cfg(SourceKind::WorkloadIdentity, None)], None).unwrap();
-        assert_eq!(wi.sources[0].detail.as_deref(), Some("resolved by tau at runtime"));
+        assert!(c
+            .put(
+                "b",
+                vec![cfg(SourceKind::TokenBroker, Some("https://b"))],
+                None
+            )
+            .is_ok());
+        let wi = c
+            .put("c", vec![cfg(SourceKind::WorkloadIdentity, None)], None)
+            .unwrap();
+        assert_eq!(
+            wi.sources[0].detail.as_deref(),
+            Some("resolved by tau at runtime")
+        );
+        // Local is also ref-exempt
+        assert!(c.put("d", vec![cfg(SourceKind::Local, None)], None).is_ok());
     }
 
     #[test]
