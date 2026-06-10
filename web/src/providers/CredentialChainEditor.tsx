@@ -181,7 +181,7 @@ export function CredentialChainEditor({
             type="button"
             disabled
             aria-label={KIND_LABEL[k]}
-            title="waits on CR-2 / CR-3"
+            title="waits on CR-3"
             className="cursor-not-allowed rounded border border-border px-1.5 py-0.5 text-[10px] text-muted opacity-60"
           >
             <span aria-hidden="true">🔒 </span>
