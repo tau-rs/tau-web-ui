@@ -3,7 +3,7 @@
 //! seam, with an in-memory bundle list (like packages' `MockOps`). tau has no
 //! real build engine yet — `CliShip` is the empty seam.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 
@@ -128,6 +128,37 @@ impl ShipSource for MockShip {
     }
 }
 
+/// List `*.tau` files in the project dir. tau has no enumerate-bundles command,
+/// so this surfaces only what is observable on disk (path, size, mtime).
+fn scan_bundles(project: &Path) -> Vec<Bundle> {
+    let mut out = Vec::new();
+    let Ok(entries) = std::fs::read_dir(project) else {
+        return out;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) != Some("tau") {
+            continue;
+        }
+        let meta = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let built_at = meta
+            .modified()
+            .ok()
+            .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339());
+        out.push(Bundle {
+            path: path.to_string_lossy().to_string(),
+            sha256: String::new(),
+            size_bytes: meta.len(),
+            built_at,
+        });
+    }
+    out.sort_by(|a, b| b.built_at.cmp(&a.built_at));
+    out
+}
+
 /// Reject a target triple that could be smuggled to `tau build` as a flag.
 fn is_safe_target(t: &str) -> bool {
     !t.is_empty() && !t.starts_with('-') && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
@@ -202,8 +233,7 @@ impl ShipSource for CliShip {
     }
 
     fn list_bundles(&self) -> Vec<Bundle> {
-        // Filesystem scan added in the next task.
-        Vec::new()
+        scan_bundles(&self.project)
     }
 
     fn build(&self, target: &str) -> Result<Bundle, BuildError> {
@@ -259,7 +289,9 @@ mod tests {
     #[test]
     fn cli_ship_is_empty_without_real_tau() {
         // A bogus bin path makes list/build fail gracefully (empty / error), no panic.
-        let s = CliShip::new("/nonexistent/tau".into(), std::env::temp_dir());
+        // Use a fresh empty dir so list_bundles' fs scan is deterministic.
+        let empty = tempfile::tempdir().unwrap();
+        let s = CliShip::new("/nonexistent/tau".into(), empty.path().to_path_buf());
         assert!(s.list_targets().is_empty());
         assert!(s.list_bundles().is_empty());
         assert!(s.build("darwin-native-strict").is_err());
@@ -284,5 +316,17 @@ mod tests {
         assert!(!is_safe_target("--output=/etc/x"));
         assert!(!is_safe_target("-rf"));
         assert!(!is_safe_target(""));
+    }
+
+    #[test]
+    fn scan_bundles_lists_tau_files() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("app.tau"), b"xxxxx").unwrap();
+        std::fs::write(dir.path().join("notes.txt"), b"y").unwrap();
+        let bundles = scan_bundles(dir.path());
+        assert_eq!(bundles.len(), 1);
+        assert!(bundles[0].path.ends_with("app.tau"));
+        assert_eq!(bundles[0].size_bytes, 5);
+        assert!(bundles[0].built_at.is_some());
     }
 }
