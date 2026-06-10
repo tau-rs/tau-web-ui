@@ -107,6 +107,7 @@ async fn credentials_crud_over_http() {
     assert_eq!(wi.status(), reqwest::StatusCode::OK);
     let wist: serde_json::Value = wi.json().await.unwrap();
     assert_eq!(wist["sources"][0]["detail"], "resolved by tau at runtime");
+    assert_eq!(wist["sources"][0]["configured"], false);
 
     // token_broker with an empty ref → 422 (a broker needs a URL)
     let tbempty = http
