@@ -1,16 +1,61 @@
 name: CI
 
+# CONTRACT
+# --------
+# `ci-summary` is the single status check branch protection should
+# require on `main`. It is green only when every real job (rust, web,
+# e2e) either SUCCEEDED or was legitimately SKIPPED — never green while
+# a job failed or was cancelled (fail-closed gating).
+#
+# DOCS-ONLY PRs
+# -------------
+# The `changes` job decides whether any non-docs file changed. The
+# heavy jobs gate on its `code` output, so a docs/markdown-only PR
+# skips rust/web/e2e while `changes` + `ci-summary` still run and
+# report green. (Workflow-level `paths-ignore` is intentionally NOT
+# used: it would skip `ci-summary` too and leave the required check
+# stuck "pending" forever.)
+#
+# CACHE INTEGRITY
+# ---------------
+# Superseded runs are cancelled EXCEPT on `main`, where Swatinem/
+# rust-cache writes the cache. Cancelling a main run mid-write means
+# the write never completes and later PRs restore a stale cache.
+
 on:
   push:
     branches: [main]
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!docs/**'
+              - '!**/*.md'
+
   rust:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +81,8 @@ jobs:
           fi
 
   web:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -58,6 +105,8 @@ jobs:
       - run: pnpm build
 
   e2e:
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,3 +139,23 @@ jobs:
             web/playwright-report/
             web/test-results/
           retention-days: 7
+
+  ci-summary:
+    name: ci-summary
+    needs: [changes, rust, web, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verify required jobs passed or were skipped
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "$results"
+          if echo "$results" | jq -e \
+            'to_entries | map(select(.value.result != "success" and .value.result != "skipped")) | length > 0' \
+            >/dev/null; then
+            echo "::error::A required job failed or was cancelled"
+            exit 1
+          fi
+          echo "All required jobs passed or were skipped (docs-only)."
