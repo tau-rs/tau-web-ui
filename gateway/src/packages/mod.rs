@@ -214,7 +214,9 @@ impl CliOps {
 
 impl PackageOps for CliOps {
     fn list(&self) -> Vec<Package> {
-        let (_, out, _) = self.run(&["list", "packages", "--json"]);
+        // `--all` shows project + global; a UI-installed (unreferenced) package
+        // lands in global scope, so the view must include both.
+        let (_, out, _) = self.run(&["list", "packages", "--all", "--json"]);
         parse_list_json(&out)
     }
     fn install(&self, git_url: &str) -> Result<Package> {
@@ -231,9 +233,11 @@ impl PackageOps for CliOps {
         if !is_safe_pkg_name(name) {
             return Err(anyhow!("invalid package name: {name}"));
         }
-        let (ok, _, err) = self.run(&["uninstall", name, "--json"]);
-        if !ok {
-            return Err(anyhow!("tau uninstall failed: {}", err.trim()));
+        // A package may live in project or global scope; remove from wherever it is.
+        let (ok_p, _, _) = self.run(&["uninstall", name, "--json"]);
+        let (ok_g, _, err_g) = self.run(&["uninstall", name, "--global", "--json"]);
+        if !ok_p && !ok_g {
+            return Err(anyhow!("tau uninstall failed: {}", err_g.trim()));
         }
         Ok(())
     }
@@ -241,13 +245,21 @@ impl PackageOps for CliOps {
         if !is_safe_pkg_name(name) {
             return Err(anyhow!("invalid package name: {name}"));
         }
-        let mut args: Vec<&str> = vec!["update", name];
+        let mut base: Vec<&str> = vec!["update", name];
         if let Some(v) = to.as_deref() {
-            args.push("--version");
-            args.push(v);
+            base.push("--version");
+            base.push(v);
         }
-        args.push("--json");
-        let (ok, _, err) = self.run(&args);
+        base.push("--json");
+        // Try project scope first, then global (a UI-installed package lands global).
+        let (ok_p, _, _) = self.run(&base);
+        let (ok, _, err) = if ok_p {
+            (true, String::new(), String::new())
+        } else {
+            let mut g = base.clone();
+            g.insert(2, "--global");
+            self.run(&g)
+        };
         if !ok {
             return Err(anyhow!("tau update failed: {}", err.trim()));
         }
@@ -266,8 +278,17 @@ impl PackageOps for CliOps {
     }
     fn verify(&self) -> Vec<VerifyResult> {
         // Exit code 2 (drift present) is data, not failure — parse stdout regardless.
-        let (_, out, _) = self.run(&["verify", "--json"]);
-        parse_verify_jsonl(&out)
+        // tau verify is single-scope (no `--all`), so check project + global and
+        // merge, mirroring `list --all`.
+        let (_, proj, _) = self.run(&["verify", "--json"]);
+        let (_, glob, _) = self.run(&["verify", "--global", "--json"]);
+        let mut results = parse_verify_jsonl(&proj);
+        for r in parse_verify_jsonl(&glob) {
+            if !results.iter().any(|x| x.name == r.name) {
+                results.push(r);
+            }
+        }
+        results
     }
 }
 
