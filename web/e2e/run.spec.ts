@@ -293,14 +293,32 @@ test("providers: set a Local credential via the inline chain editor", async ({ p
   // open the chain editor for anthropic
   await row.getByRole("button", { name: "set credential" }).click();
   await expect(page.getByText(/credential chain — anthropic/i)).toBeVisible();
-  // a gated source is disabled
-  await expect(page.getByRole("button", { name: "Vault" })).toBeDisabled();
+  // a gated source is disabled (Token broker waits on CR-3; Vault is ungated since CR-2)
+  await expect(page.getByRole("button", { name: "Token broker" })).toBeDisabled();
   // add a Local source, type a value, save
   await page.getByRole("button", { name: "Local" }).click();
   await page.getByLabel("local secret value").fill("sk-demo");
   await page.getByRole("button", { name: /^save$/i }).click();
   // the row badge flips to "✓ via local"
   await expect(row.getByText(/✓ via local/i)).toBeVisible();
+});
+
+test("providers: add a Vault source — ungated, shows the ambient-env hint", async ({ page }) => {
+  await page.goto("/projects/demo/providers");
+  const row = page.getByRole("row").filter({ hasText: "anthropic" });
+  await expect(row).toBeVisible({ timeout: 5000 });
+  await row.getByRole("button", { name: "set credential" }).click();
+  await expect(page.getByText(/credential chain — anthropic/i)).toBeVisible();
+  // Token broker stays gated; Vault is now addable
+  await expect(page.getByRole("button", { name: "Token broker" })).toBeDisabled();
+  await page.getByRole("button", { name: "Vault" }).click();
+  // Target the Vault ref input by its index-independent placeholder: a prior test
+  // in the same run may have persisted a Local row to anthropic's shared store,
+  // which would shift the Vault row off index 0.
+  await page.getByPlaceholder("secret/data/anthropic").fill("secret/data/anthropic");
+  await page.getByRole("button", { name: /^save$/i }).click();
+  // VAULT_ADDR is unset in the dev env → the saved source shows its ambient-env hint
+  await expect(page.getByText(/VAULT_ADDR not set/i)).toBeVisible();
 });
 
 test("workflows: edit mode adds a step via the inline + and palette", async ({ page }) => {
