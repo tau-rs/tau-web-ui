@@ -4,6 +4,7 @@ import { useStore } from "../store/store";
 import { Sidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
+import { Toaster } from "../notify/Toaster";
 
 export function AppShell() {
   const loadProjects = useStore((s) => s.loadProjects);
@@ -23,6 +24,7 @@ export function AppShell() {
         </div>
       </div>
       <Footer />
+      <Toaster />
     </div>
   );
 }

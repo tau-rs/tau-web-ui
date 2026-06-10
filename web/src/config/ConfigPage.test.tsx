@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ConfigPage } from "./ConfigPage";
+import { Toaster } from "../notify/Toaster";
+import { useNotifications } from "../notify/notify";
 import { setActiveProject } from "../api/client";
 
 beforeEach(() => {
   vi.restoreAllMocks();
   setActiveProject("demo");
+  useNotifications.setState({ items: [] });
 });
 
 function mockFetch(handler: (url: string, init?: RequestInit) => unknown) {
@@ -42,5 +45,37 @@ describe("ConfigPage", () => {
         calls.some((c) => c.url.includes("/project/config") && c.body?.includes("renamed")),
       ).toBe(true),
     );
+  });
+
+  it("surfaces an error and does NOT claim saved when the save fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes("/project/config") && init?.method === "PUT")
+          return Promise.resolve({
+            ok: false,
+            status: 500,
+            json: async () => ({}),
+            text: async () => "boom",
+          });
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ name: "demo", description: "d", agents: [] }),
+          text: async () => "",
+        });
+      }),
+    );
+    render(
+      <>
+        <ConfigPage />
+        <Toaster />
+      </>,
+    );
+    await waitFor(() => expect(screen.getByDisplayValue("demo")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert").textContent).toContain("Failed to save config");
+    expect(screen.queryByText(/saved to tau\.toml/)).not.toBeInTheDocument();
   });
 });
