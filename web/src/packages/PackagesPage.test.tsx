@@ -11,7 +11,13 @@ beforeEach(() => {
 describe("PackagesPage", () => {
   it("lists packages and installs a new one", async () => {
     let list = [
-      { name: "anthropic", version: "0.1.0", source: "github.com/tau/anthropic", status: "ok" },
+      {
+        name: "anthropic",
+        version: "0.1.0",
+        source: "github.com/tau/anthropic",
+        scope: "project",
+        version_count: 1,
+      },
     ];
     vi.stubGlobal(
       "fetch",
@@ -29,7 +35,8 @@ describe("PackagesPage", () => {
               name: "cooltool",
               version: "1.0.0",
               source: "github.com/acme/cooltool",
-              status: "ok",
+              scope: "project",
+              version_count: 1,
             },
           ];
           return Promise.resolve({ ok: true, json: async () => ({ package: list[1] }) });

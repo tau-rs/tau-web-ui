@@ -224,25 +224,27 @@ test("plugins tab: gated, two-pane describe + protocol-decode", async ({ page })
   await expect(page.getByText(/"model": "claude-opus-4"/)).toBeVisible();
 });
 
-test("ship: targets, build host, new bundle with steps", async ({ page }) => {
+test("ship: targets render and a build produces a .tau bundle", async ({ page }) => {
   await page.goto("/projects/demo/ship");
-  // host target card rendered (assert the substrate — "host" also appears as a
-  // select option + bundle target cell; Playwright resolves /native/ to the card).
-  await expect(page.getByText(/native/)).toBeVisible({ timeout: 5000 });
+  // Targets are per-platform triples now. windows-native-strict is "reserved", so it
+  // renders only as a card (not a build-select option) — an unambiguous single match.
+  await expect(page.getByText("windows-native-strict")).toBeVisible({ timeout: 5000 });
   await expect(page.getByRole("button", { name: /^build$/i })).toBeVisible();
   await page.getByRole("button", { name: /^build$/i }).click();
-  // the build step timeline renders (compile is unique to the timeline)
-  await expect(page.getByText("compile")).toBeVisible({ timeout: 5000 });
+  // The build emits a .tau bundle (shown in the "built …" line); steps/timeline were
+  // dropped when Target/Bundle evolved to tau's real shape.
+  await expect(page.getByText(/built .*\.tau/)).toBeVisible({ timeout: 5000 });
 });
 
 test("health: checks findings + filter + gated conformance", async ({ page }) => {
   await page.goto("/projects/demo/health");
-  await expect(page.getByText("TAU-CONFIG-ENDPOINT")).toBeVisible({ timeout: 5000 });
+  // Rule IDs evolved to tau's real lowercase dotted shape (CheckReport evolution).
+  await expect(page.getByText("tau.config.endpoint")).toBeVisible({ timeout: 5000 });
   await expect(page.getByText(/waits on tau β\.6/i)).toBeVisible();
   // filter by the lockfile chip → the config error finding disappears
   await page.getByRole("button", { name: /lockfile/i }).click();
-  await expect(page.getByText("TAU-LOCK-STALE")).toBeVisible();
-  await expect(page.getByText("TAU-CONFIG-ENDPOINT")).toHaveCount(0);
+  await expect(page.getByText("tau.lockfile.missing")).toBeVisible();
+  await expect(page.getByText("tau.config.endpoint")).toHaveCount(0);
 });
 
 test("workflows: graph editor renders + edit mode is gated", async ({ page }) => {
