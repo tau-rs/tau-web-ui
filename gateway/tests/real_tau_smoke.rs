@@ -1,6 +1,7 @@
 //! Smoke test against a REAL `tau serve` + Ollama. Skips unless BOTH:
 //!   - env `TAU_REAL_BIN` points at a runnable `tau` binary, and
 //!   - Ollama answers at http://localhost:11434.
+//!
 //! Never runs in the default CI gate (no model in CI).
 
 use std::path::PathBuf;
