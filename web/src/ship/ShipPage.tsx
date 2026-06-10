@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Target } from "../types/Target";
 import type { Bundle } from "../types/Bundle";
-import { listTargets, listBundles, build } from "../api/ship";
+import type { VerifyOutcome } from "../types/VerifyOutcome";
+import { listTargets, listBundles, build, verifyBundle } from "../api/ship";
 
 function humanSize(bytes: number | bigint): string {
   // ts-rs exports the Rust `u64` `size_bytes` as `bigint`; coerce to number.
@@ -23,6 +24,8 @@ export function ShipPage() {
   const [target, setTarget] = useState("");
   const [building, setBuilding] = useState(false);
   const [lastBuild, setLastBuild] = useState<Bundle | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<Record<string, VerifyOutcome>>({});
 
   useEffect(() => {
     listTargets()
@@ -47,6 +50,18 @@ export function ShipPage() {
       // mock surface — ignore
     } finally {
       setBuilding(false);
+    }
+  }
+
+  async function onVerify(path: string) {
+    setVerifying(path);
+    try {
+      const v = await verifyBundle(path);
+      setVerifyResult((p) => ({ ...p, [path]: v }));
+    } catch {
+      /* surface nothing on the mock */
+    } finally {
+      setVerifying(null);
     }
   }
 
@@ -104,6 +119,7 @@ export function ShipPage() {
               <th className="px-2 py-1 font-medium">hash</th>
               <th className="px-2 py-1 font-medium">size</th>
               <th className="px-2 py-1 font-medium">built</th>
+              <th className="px-2 py-1 font-medium">verify</th>
             </tr>
           </thead>
           <tbody>
@@ -113,6 +129,23 @@ export function ShipPage() {
                 <td className="px-2 py-1 font-mono text-muted">{shortHash(b.sha256)}</td>
                 <td className="px-2 py-1 text-muted">{humanSize(b.size_bytes)}</td>
                 <td className="px-2 py-1 text-muted">{b.built_at ?? "—"}</td>
+                <td className="px-2 py-1">
+                  {verifyResult[b.path] ? (
+                    <span
+                      className={verifyResult[b.path].reproducible ? "text-st-ok" : "text-st-error"}
+                    >
+                      {verifyResult[b.path].reproducible ? "✓ reproducible" : "✗ drift"}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => onVerify(b.path)}
+                      disabled={verifying === b.path}
+                      className="rounded border border-border px-1.5 py-0.5 text-[10px] disabled:opacity-50"
+                    >
+                      {verifying === b.path ? "…" : "Verify"}
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

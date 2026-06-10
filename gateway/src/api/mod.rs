@@ -62,6 +62,7 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/targets", get(ship::targets))
         .route("/bundles", get(ship::bundles))
         .route("/build", post(ship::build))
+        .route("/verify", post(ship::verify))
         .route("/checks", get(checks::report));
 
     Router::new()

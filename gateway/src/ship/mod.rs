@@ -36,6 +36,21 @@ pub struct BuildRequest {
     pub target: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct VerifyRequest {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct VerifyOutcome {
+    pub reproducible: bool,
+    pub shipped_sha256: String,
+    pub rebuilt_sha256: String,
+    pub diffs: Vec<String>,
+}
+
 /// Build failure mapped to HTTP 400 by the handler.
 #[derive(Debug)]
 pub enum BuildError {
@@ -61,6 +76,7 @@ pub trait ShipSource: Send + Sync {
     fn list_targets(&self) -> Vec<Target>;
     fn list_bundles(&self) -> Vec<Bundle>;
     fn build(&self, target: &str) -> Result<Bundle, BuildError>;
+    fn verify(&self, bundle_path: &str) -> Result<VerifyOutcome, BuildError>;
 }
 
 /// The fixed target registry mirroring `tau target list --json`.
@@ -125,6 +141,14 @@ impl ShipSource for MockShip {
         };
         self.bundles.lock().unwrap().insert(0, bundle.clone());
         Ok(bundle)
+    }
+    fn verify(&self, _bundle_path: &str) -> Result<VerifyOutcome, BuildError> {
+        Ok(VerifyOutcome {
+            reproducible: true,
+            shipped_sha256: "9f3c1a2b7e".into(),
+            rebuilt_sha256: "9f3c1a2b7e".into(),
+            diffs: vec![],
+        })
     }
 }
 
@@ -207,7 +231,22 @@ fn parse_build_result(
     }
 }
 
-/// Shells real tau: `tau target list` / `tau build` / (verify added later).
+fn parse_verify_json(stdout: &str) -> Result<VerifyOutcome, BuildError> {
+    let line = stdout.trim().lines().last().unwrap_or("");
+    let v: serde_json::Value =
+        serde_json::from_str(line).map_err(|e| BuildError::Internal(format!("unparseable verify output: {e}")))?;
+    Ok(VerifyOutcome {
+        reproducible: v["reproducible"].as_bool().unwrap_or(false),
+        shipped_sha256: v["shipped_sha256"].as_str().unwrap_or("").to_string(),
+        rebuilt_sha256: v["rebuilt_sha256"].as_str().unwrap_or("").to_string(),
+        diffs: v["diffs"]
+            .as_array()
+            .map(|a| a.iter().map(|d| d.to_string()).collect())
+            .unwrap_or_default(),
+    })
+}
+
+/// Shells real tau: `tau target list` / `tau build` / `tau verify --bundle`.
 pub struct CliShip {
     bin: PathBuf,
     project: PathBuf,
@@ -253,6 +292,23 @@ impl ShipSource for CliShip {
             &String::from_utf8_lossy(&out.stdout),
             &String::from_utf8_lossy(&out.stderr),
         )
+    }
+
+    fn verify(&self, bundle_path: &str) -> Result<VerifyOutcome, BuildError> {
+        let out = Command::new(&self.bin)
+            .arg("verify")
+            .arg("--bundle")
+            .arg(bundle_path)
+            .arg("--json")
+            .current_dir(&self.project)
+            .output()
+            .map_err(|e| BuildError::Internal(format!("could not run tau verify: {e}")))?;
+        if out.status.code() == Some(3) {
+            return Err(BuildError::NeedsProvisioning(
+                String::from_utf8_lossy(&out.stderr).trim().to_string(),
+            ));
+        }
+        parse_verify_json(&String::from_utf8_lossy(&out.stdout))
     }
 }
 
@@ -308,6 +364,14 @@ mod tests {
         assert_eq!(darwin.status, "available");
         assert!(ts.iter().any(|t| t.triple == "windows-native-strict" && t.status == "reserved"));
         assert!(darwin.required_shapes.contains(&"exec".to_string()));
+    }
+
+    #[test]
+    fn parse_verify_reads_reproducibility() {
+        let line = r#"{"reproducible":true,"shipped_sha256":"aa","rebuilt_sha256":"aa","diffs":[]}"#;
+        let v = parse_verify_json(line).unwrap();
+        assert!(v.reproducible);
+        assert_eq!(v.shipped_sha256, "aa");
     }
 
     #[test]

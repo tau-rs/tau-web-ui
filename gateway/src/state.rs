@@ -551,6 +551,10 @@ impl AppState {
         self.0.ship_source.build(target)
     }
 
+    pub fn verify(&self, bundle_path: &str) -> Result<crate::ship::VerifyOutcome, crate::ship::BuildError> {
+        self.0.ship_source.verify(bundle_path)
+    }
+
     pub fn checks(&self) -> CheckReport {
         self.0.check_source.report()
     }
