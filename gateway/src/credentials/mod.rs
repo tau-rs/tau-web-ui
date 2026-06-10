@@ -138,6 +138,16 @@ pub fn resolve(
     (false, None)
 }
 
+/// The canonical env var that tau's LLM plugin reads for `backend` (default
+/// `api_key_env`). `None` for backends with no known cloud key (e.g. ollama).
+pub fn canonical_env_var(backend: &str) -> Option<&'static str> {
+    match backend {
+        "anthropic" => Some("ANTHROPIC_API_KEY"),
+        "openai" => Some("OPENAI_API_KEY"),
+        _ => None,
+    }
+}
+
 // ---- store: global per-gateway, two 0600 files under `data_root` ----
 
 #[derive(Default, Serialize, Deserialize)]
@@ -241,6 +251,49 @@ impl Credentials {
             .iter()
             .map(|(name, bc)| self.status_for(name, bc, &secrets))
             .collect()
+    }
+
+    /// The secret value for `backend` when its winning source is Local or Env,
+    /// else `None`. Managers / TokenBroker / WorkloadIdentity are never read here.
+    pub fn resolve_secret(
+        &self,
+        backend: &str,
+        env_get: &dyn Fn(&str) -> Option<String>,
+    ) -> Option<String> {
+        let cfg = self.read_config();
+        let bc = cfg.backends.get(backend)?;
+        let secrets = self.read_secrets();
+        let has_local = secrets.contains_key(backend);
+        let (_, via) = resolve(&bc.sources, has_local, env_get);
+        match via? {
+            SourceKind::Local => secrets.get(backend).cloned(),
+            SourceKind::Env => bc
+                .sources
+                .iter()
+                .find(|s| s.kind == SourceKind::Env)
+                .and_then(|s| s.reference.as_deref())
+                .and_then(env_get),
+            _ => None,
+        }
+    }
+
+    /// `(env_var, value)` pairs for every configured backend that has a known
+    /// canonical var and a Local/Env-resolvable secret. Never logs values.
+    pub fn credential_env(
+        &self,
+        env_get: &dyn Fn(&str) -> Option<String>,
+    ) -> Vec<(String, String)> {
+        let cfg = self.read_config();
+        let mut out = Vec::new();
+        for backend in cfg.backends.keys() {
+            if let (Some(var), Some(val)) = (
+                canonical_env_var(backend),
+                self.resolve_secret(backend, env_get),
+            ) {
+                out.push((var.to_string(), val));
+            }
+        }
+        out
     }
 
     /// Set a backend's ordered sources (+ optional write-only Local value).
@@ -628,5 +681,56 @@ mod store_tests {
         // the existing local value is retained → still resolves via local
         assert!(st.resolved);
         assert_eq!(st.resolved_via, Some(SourceKind::Local));
+    }
+
+    #[test]
+    fn credential_env_injects_local_value_under_canonical_var() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = Credentials::new(dir.path().to_path_buf());
+        c.put(
+            "anthropic",
+            vec![cfg(SourceKind::Local, None)],
+            Some("sk-abc".into()),
+        )
+        .unwrap();
+        let env = c.credential_env(&|_| None);
+        assert_eq!(
+            env,
+            vec![("ANTHROPIC_API_KEY".to_string(), "sk-abc".to_string())]
+        );
+    }
+
+    #[test]
+    fn credential_env_reads_env_source_value_under_canonical_var() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = Credentials::new(dir.path().to_path_buf());
+        c.put("openai", vec![cfg(SourceKind::Env, Some("MY_OAI"))], None)
+            .unwrap();
+        let getter = |k: &str| (k == "MY_OAI").then(|| "sk-env".to_string());
+        let env = c.credential_env(&getter);
+        assert_eq!(
+            env,
+            vec![("OPENAI_API_KEY".to_string(), "sk-env".to_string())]
+        );
+    }
+
+    #[test]
+    fn credential_env_skips_unreadable_and_unknown_backends() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = Credentials::new(dir.path().to_path_buf());
+        c.put(
+            "anthropic",
+            vec![cfg(SourceKind::Vault, Some("secret/x"))],
+            None,
+        )
+        .unwrap();
+        c.put(
+            "acme-llm",
+            vec![cfg(SourceKind::Local, None)],
+            Some("v".into()),
+        )
+        .unwrap();
+        let getter = |k: &str| (k == "VAULT_ADDR").then(|| "http://v".to_string());
+        assert!(c.credential_env(&getter).is_empty());
     }
 }

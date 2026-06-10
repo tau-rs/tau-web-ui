@@ -1,5 +1,7 @@
 //! Faithful mock of the `tau serve` wire protocol (NDJSON JSON-RPC over stdio).
 //! Implements the contract snapshotted in tau-web-ui/docs/tau-contract-v1.md.
+//! Invoked like the real binary: `fake-tau-serve serve --project <path> --ready-on-stderr`
+//! (a leading `serve` subcommand is accepted and ignored).
 //! Flags: --project <path> --ready-on-stderr [--max-concurrent N] [--idle-timeout S]
 
 mod scripts;
@@ -11,6 +13,9 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    // The gateway invokes us as `<bin> serve --project …`; the `serve` subcommand
+    // (present for parity with the real `tau` binary) is accepted and ignored here.
+    debug_assert!(args.iter().any(|a| a == "serve") || args.len() <= 1);
     let project = flag(&args, "--project").unwrap_or_else(|| ".".into());
     let ready_on_stderr = args.iter().any(|a| a == "--ready-on-stderr");
 
@@ -73,12 +78,32 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .await?;
             }
+            "meta.env" => {
+                // Presence only — never echo the value (it may be a secret).
+                let var = req["params"]["var"].as_str().unwrap_or("");
+                let present =
+                    !var.is_empty() && std::env::var(var).map(|v| !v.is_empty()).unwrap_or(false);
+                write_line(
+                    &mut *out.lock().await,
+                    &json!({"jsonrpc":"2.0","id":id,"result":{"present":present}}),
+                )
+                .await?;
+            }
             "runtime.run_streaming" => {
                 let agent = req["params"]["agent"]
                     .as_str()
                     .unwrap_or("greeter")
                     .to_string();
                 let prompt = req["params"]["prompt"].as_str().unwrap_or("").to_string();
+                if agent == "boom" {
+                    // Deterministic LLM_ERROR for failure-path tests.
+                    write_line(
+                        &mut *out.lock().await,
+                        &err_response(&id, -32008, "llm boom"),
+                    )
+                    .await?;
+                    continue;
+                }
                 let id_str = id.to_string();
                 let out = out.clone();
                 let cancelled = cancelled.clone();

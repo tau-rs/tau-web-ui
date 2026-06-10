@@ -32,6 +32,8 @@ pub struct Inner {
     pub bin: PathBuf,
     pub project: PathBuf,
     pub no_sandbox: bool,
+    pub data_root: PathBuf,
+    pub is_mock: bool,
     pub store: RunStore,
     workflow_runner: Box<dyn WorkflowRunner>,
     package_ops: Box<dyn PackageOps>,
@@ -52,12 +54,29 @@ pub struct Inner {
 }
 
 impl AppState {
+    /// Back-compat constructor used by tests: autodetects `is_mock` from the bin
+    /// filename and defaults `data_root` to the store's directory. Prefer
+    /// `with_options` from the registry, which passes both explicitly.
     pub fn new(bin: PathBuf, project: PathBuf, no_sandbox: bool, store: RunStore) -> Self {
         let is_mock = bin
             .file_name()
             .and_then(|n| n.to_str())
             .map(|n| n.contains("fake-tau-serve"))
             .unwrap_or(false);
+        let data_root = store.root().to_path_buf();
+        Self::with_options(bin, project, no_sandbox, store, data_root, is_mock)
+    }
+
+    /// Construct with an explicit `data_root` (for the credential bridge) and an
+    /// explicit `is_mock` (which selects the non-run sidecar seams only).
+    pub fn with_options(
+        bin: PathBuf,
+        project: PathBuf,
+        no_sandbox: bool,
+        store: RunStore,
+        data_root: PathBuf,
+        is_mock: bool,
+    ) -> Self {
         let workflow_runner: Box<dyn WorkflowRunner> = if is_mock {
             Box::new(MockRunner)
         } else {
@@ -110,6 +129,8 @@ impl AppState {
             bin,
             project,
             no_sandbox,
+            data_root,
+            is_mock,
             store,
             workflow_runner,
             package_ops,
@@ -153,10 +174,13 @@ impl AppState {
                 return Ok(c.clone());
             }
         }
-        let c = ServeClient::spawn(
+        let envs = crate::credentials::Credentials::new(self.0.data_root.clone())
+            .credential_env(&|k| std::env::var(k).ok());
+        let c = ServeClient::spawn_with_env(
             self.0.bin.clone(),
             self.0.project.clone(),
             self.0.no_sandbox,
+            envs,
         )
         .await?;
         *guard = Some(c.clone());

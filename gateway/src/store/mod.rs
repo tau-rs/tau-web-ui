@@ -36,6 +36,11 @@ impl RunStore {
         Ok(RunStore { dir })
     }
 
+    /// The directory this store writes run files into.
+    pub fn root(&self) -> &std::path::Path {
+        &self.dir
+    }
+
     fn path(&self, run_id: &str) -> PathBuf {
         self.dir.join(format!("{run_id}.jsonl"))
     }

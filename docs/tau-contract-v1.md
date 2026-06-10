@@ -41,3 +41,21 @@ Error codes: `-32700` parse · `-32600` invalid request · `-32601` method not f
 - `TurnCompleted.data.usage` may be present or `null`; the doc's §5.4 omits `usage` but `RunEvent::TurnCompleted` carries `Option<TokenUsage>`. We tolerate both.
 - Batch `runtime.run` token_usage is keyed `{prompt, completion}` while streaming uses `{input_tokens, output_tokens, total_tokens}`. The gateway only uses `run_streaming`; we normalize all token usage to `{input_tokens, output_tokens, total_tokens}` (total optional).
 - `ToolCallCompleted.data.result` is either `{ok:true, content:[…], is_error:bool}` or `{ok:false, error:"…"}`. Span status is `error` iff `ok==false` or `is_error==true`.
+
+## Verifying against real tau (D1)
+
+The gateway speaks this contract to either `fake-tau-serve` (deterministic oracle)
+or the real `tau` binary. To verify against real tau locally:
+
+1. Build tau: `cargo build --manifest-path /path/to/tau/Cargo.toml -p tau-cli`.
+2. Pull a tool-capable Ollama model (e.g. `ollama pull mistral`) and ensure Ollama
+   is running on `:11434`. The fixture agent declares `package = "ollama@^0.1"`,
+   `llm_backend = "ollama"`, and `model = "mistral"`; real tau resolves the backend
+   plugin from the project scope lockfile, so the `ollama` plugin must be installed
+   (`tau install <ollama-plugin-url>`) before a live run will reach the model.
+3. Run the gated smoke test:
+   `TAU_REAL_BIN=/path/to/tau/target/debug/tau cargo test -p tau-gateway --test real_tau_smoke -- --nocapture`.
+
+The smoke test skips automatically when `TAU_REAL_BIN` is unset or Ollama is down,
+so it is safe in the default `cargo test` gate. Cloud backends (anthropic/openai)
+authenticate via the credential→env bridge once a key is stored in the chain.

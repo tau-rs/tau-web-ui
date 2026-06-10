@@ -70,3 +70,20 @@ async fn cancel_mid_run_yields_error() {
     }
     assert!(saw_error, "expected -32001 cancellation");
 }
+
+#[tokio::test]
+async fn injected_env_reaches_the_child() {
+    let client = ServeClient::spawn_with_env(
+        mock_bin(),
+        project(),
+        true,
+        vec![("INJECTED_PROBE".to_string(), "yes".to_string())],
+    )
+    .await
+    .unwrap();
+    assert!(client.debug_env_present("INJECTED_PROBE").await.unwrap());
+    assert!(!client
+        .debug_env_present("DEFINITELY_NOT_SET_XZ")
+        .await
+        .unwrap());
+}

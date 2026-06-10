@@ -2,7 +2,7 @@
 pub mod jsonrpc;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
@@ -61,18 +61,49 @@ fn req_id(id: &RequestId) -> i64 {
     }
 }
 
+/// Build the `tau serve` child command: `<bin> serve --project <path> --ready-on-stderr [--no-sandbox]`,
+/// with stdio piped and the given env vars applied on top of the inherited environment.
+/// The `serve` subcommand is what the real `tau` binary requires; `fake-tau-serve`
+/// tolerates (ignores) it.
+fn build_serve_command(
+    bin: &Path,
+    project: &Path,
+    no_sandbox: bool,
+    envs: &[(String, String)],
+) -> Command {
+    let mut cmd = Command::new(bin);
+    cmd.arg("serve")
+        .arg("--project")
+        .arg(project)
+        .arg("--ready-on-stderr");
+    if no_sandbox {
+        cmd.arg("--no-sandbox");
+    }
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    cmd.kill_on_drop(true);
+    cmd
+}
+
 impl ServeClient {
-    /// Spawn `tau serve`, wait for the ready line on stderr, handshake.
+    /// Spawn with no injected env (back-compat; used by tests).
     pub async fn spawn(bin: PathBuf, project: PathBuf, no_sandbox: bool) -> Result<ServeClient> {
-        let mut cmd = Command::new(&bin);
-        cmd.arg("--project").arg(&project).arg("--ready-on-stderr");
-        if no_sandbox {
-            cmd.arg("--no-sandbox");
-        }
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        cmd.kill_on_drop(true);
+        Self::spawn_with_env(bin, project, no_sandbox, Vec::new()).await
+    }
+
+    /// Spawn `tau serve`, injecting `envs` on top of the inherited environment;
+    /// wait for the ready line on stderr; handshake.
+    pub async fn spawn_with_env(
+        bin: PathBuf,
+        project: PathBuf,
+        no_sandbox: bool,
+        envs: Vec<(String, String)>,
+    ) -> Result<ServeClient> {
+        let mut cmd = build_serve_command(&bin, &project, no_sandbox, &envs);
         let mut child = cmd.spawn().with_context(|| format!("spawn {bin:?}"))?;
 
         // Wait for "tau-serve ready" on stderr.
@@ -243,6 +274,17 @@ impl ServeClient {
             .unwrap_or(false))
     }
 
+    /// TEST/DEBUG ONLY: ask the child whether an env var is set (presence only;
+    /// the value is never returned). The real `tau` binary does not implement
+    /// `meta.env` and will answer "method not found" — this is for the mock.
+    pub async fn debug_env_present(&self, var: &str) -> Result<bool> {
+        Ok(
+            self.unary_call("meta.env", json!({ "var": var })).await?["present"]
+                .as_bool()
+                .unwrap_or(false),
+        )
+    }
+
     /// Start a streaming run. Returns (serve_request_id, receiver of RunItems).
     pub async fn run_streaming(
         &self,
@@ -283,5 +325,45 @@ impl ServeClient {
             .ok()
             .flatten()
             .is_none()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_serve_command_inserts_serve_subcommand_and_flags() {
+        let cmd = build_serve_command(
+            &PathBuf::from("/opt/tau"),
+            &PathBuf::from("/proj"),
+            true,
+            &[],
+        );
+        let std = cmd.as_std();
+        let args: Vec<String> = std
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args[0], "serve", "serve subcommand must come first");
+        assert!(args.iter().any(|a| a == "--project"));
+        assert!(args.iter().any(|a| a == "/proj"));
+        assert!(args.iter().any(|a| a == "--ready-on-stderr"));
+        assert!(args.iter().any(|a| a == "--no-sandbox"));
+    }
+
+    #[test]
+    fn build_serve_command_applies_injected_env() {
+        let cmd = build_serve_command(
+            &PathBuf::from("/opt/tau"),
+            &PathBuf::from("/proj"),
+            false,
+            &[("ANTHROPIC_API_KEY".to_string(), "sk-xyz".to_string())],
+        );
+        let std = cmd.as_std();
+        let found = std
+            .get_envs()
+            .any(|(k, v)| k == "ANTHROPIC_API_KEY" && v == Some("sk-xyz".as_ref()));
+        assert!(found, "injected env var must be set on the child command");
     }
 }

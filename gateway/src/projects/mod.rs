@@ -105,12 +105,25 @@ pub struct ProjectRegistry(Arc<Inner>);
 impl ProjectRegistry {
     /// Build an empty registry, then load any persisted projects from
     /// `<data_root>/projects.json`. Each loaded project is rehydrated from disk.
+    /// Load with autodetected binary kind (filename contains "fake-tau-serve").
     pub async fn load(bin: PathBuf, no_sandbox: bool, data_root: PathBuf) -> Result<Self> {
-        let is_mock = bin
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|n| n.contains("fake-tau-serve"))
-            .unwrap_or(false);
+        Self::load_with_kind(bin, no_sandbox, data_root, None).await
+    }
+
+    /// Load with an explicit `is_mock` override (`--serve-kind`). `None` = autodetect.
+    /// `is_mock` selects the non-run sidecar seams only; runs always spawn `bin`.
+    pub async fn load_with_kind(
+        bin: PathBuf,
+        no_sandbox: bool,
+        data_root: PathBuf,
+        is_mock_override: Option<bool>,
+    ) -> Result<Self> {
+        let is_mock = is_mock_override.unwrap_or_else(|| {
+            bin.file_name()
+                .and_then(|n| n.to_str())
+                .map(|n| n.contains("fake-tau-serve"))
+                .unwrap_or(false)
+        });
         std::fs::create_dir_all(&data_root).ok();
         let reg = ProjectRegistry(Arc::new(Inner {
             projects: RwLock::new(IndexMap::new()),
@@ -179,11 +192,13 @@ impl ProjectRegistry {
             .join(&meta.id)
             .join("runs");
         let store = RunStore::new(&store_dir)?;
-        let state = AppState::new(
+        let state = AppState::with_options(
             self.0.bin.clone(),
             PathBuf::from(&meta.path),
             self.0.no_sandbox,
             store,
+            self.0.data_root.clone(),
+            self.0.is_mock,
         );
         state.rehydrate().await?;
         self.0
