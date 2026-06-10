@@ -9,12 +9,14 @@ name: CI
 #
 # DOCS-ONLY PRs
 # -------------
-# The `changes` job decides whether any non-docs file changed. The
-# heavy jobs gate on its `code` output, so a docs/markdown-only PR
-# skips rust/web/e2e while `changes` + `ci-summary` still run and
-# report green. (Workflow-level `paths-ignore` is intentionally NOT
-# used: it would skip `ci-summary` too and leave the required check
-# stuck "pending" forever.)
+# The `changes` job decides whether any non-docs file changed. On a
+# pull request, the heavy jobs gate on its `code` output, so a docs/
+# markdown-only PR skips rust/web/e2e while `changes` + `ci-summary`
+# still run and report green. Pushes to `main` always run the full
+# suite (fail-closed on the protected branch, independent of paths-
+# filter's push-diff base resolution). (Workflow-level `paths-ignore`
+# is intentionally NOT used: it would skip `ci-summary` too and leave
+# the required check stuck "pending" forever.)
 #
 # CACHE INTEGRITY
 # ---------------
@@ -55,7 +57,7 @@ jobs:
 
   rust:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +84,7 @@ jobs:
 
   web:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -106,7 +108,7 @@ jobs:
 
   e2e:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -27,7 +27,7 @@ change that honours each principle.
 | **P3** | **Flakes are signal, not noise.** CI never silently retries to hide a flake; surface it and fix the test. | audit-pass change 10 (nextest `retries=0`) |
 | **P4** | **Coverage is a signal, not a gate.** Measure to inform; never hard-threshold (it incentivises tests-for-coverage). | `coverage.yml` header |
 | **P5** | **Cache integrity.** Don't cancel `main` runs mid-cache-write — the cache save step would never complete and later PRs restore stale. | upgrades-round-1 item A |
-| **P6** | **Docs-only changes skip the heavy jobs but still satisfy the gate.** | audit-pass change 6 |
+| **P6** | **Docs-only *PRs* skip the heavy jobs but still satisfy the gate; pushes to `main` always run the full suite.** | audit-pass change 6 |
 | **P7** | **Security-conscious event model.** `pull_request`, never `pull_request_target`/`workflow_run`, for secret-bearing jobs; untrusted fields consumed only as data, never interpolated into a shell `run:`; AI bots gated behind an actor allowlist / opt-in variable. | `claude.yml` / `claude-review.yml` headers |
 | **P8** | **Manage action/dependency versions.** Dependabot opens grouped bumps weekly so pinning stays low-maintenance. | upgrades-round-1 item C; audit-pass post-merge |
 | **P9** | **Every workflow documents its *why*** — the failure mode it prevents and the trade-off, in a header comment. | every tau workflow |
@@ -98,19 +98,21 @@ jobs:
 
   rust:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     # ...existing steps unchanged...
 
   web:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     # ...existing steps unchanged...
 
   e2e:
     needs: changes
-    if: ${{ needs.changes.outputs.code == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     # ...existing steps unchanged...
 ```
+
+On non-PR events (pushes to `main`) the heavy jobs always run — the docs-skip is a pull-request-only optimization, so the protected branch stays fail-closed regardless of how paths-filter resolves the push diff.
 
 A docs/markdown-only change makes `changes.outputs.code == 'false'`, so
 `rust`/`web`/`e2e` are skipped while `changes` and `ci-summary` still run.
@@ -204,11 +206,12 @@ Delete all three from the worktree.
    failure in any of `rust`/`web`/`e2e` makes `ci-summary` **fail**.
 3. On a docs/markdown-only PR, `rust`/`web`/`e2e` are **skipped** and
    `ci-summary` **passes**.
-4. `cancel-in-progress` is `false` for `refs/heads/main`, `true` otherwise.
-5. `.github/dependabot.yml` validates and lists the three ecosystems.
-6. The three scratch workflow files are gone; `git status` shows only the
+4. On a push to `main` (any path), `rust`/`web`/`e2e` always run (docs-skip is PR-only).
+5. `cancel-in-progress` is `false` for `refs/heads/main`, `true` otherwise.
+6. `.github/dependabot.yml` validates and lists the three ecosystems.
+7. The three scratch workflow files are gone; `git status` shows only the
    intended additions/edits.
-7. All four workflow YAMLs parse (`yaml.safe_load`); `actionlint` clean if
+8. All four workflow YAMLs parse (`yaml.safe_load`); `actionlint` clean if
    available.
 
 ## Post-merge manual step (repo owner)
