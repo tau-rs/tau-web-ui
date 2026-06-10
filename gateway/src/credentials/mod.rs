@@ -25,9 +25,9 @@ pub enum SourceKind {
 }
 
 impl SourceKind {
-    /// Not yet wired in CR-1 (everything except Env/Local).
+    /// Not yet wired (the TokenBroker/WorkloadIdentity path is CR-3).
     pub fn gated(self) -> bool {
-        !matches!(self, SourceKind::Env | SourceKind::Local)
+        matches!(self, SourceKind::TokenBroker | SourceKind::WorkloadIdentity)
     }
 }
 
@@ -50,6 +50,7 @@ pub struct SourceStatus {
     pub reference: Option<String>,
     pub configured: bool,
     pub gated: bool,
+    pub detail: Option<String>, // non-secret hint, e.g. "VAULT_ADDR not set"; None when configured
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -62,11 +63,15 @@ pub struct BackendCredentialStatus {
 }
 
 /// Whether one source can resolve, given local-secret presence + an env lookup.
+/// CR-2: SecretManager kinds are "configured" when their `ref` is set AND the
+/// manager's ambient-connection env is present (no secret is fetched).
 pub fn source_configured(
     s: &SourceConfig,
     has_local: bool,
     env_get: &dyn Fn(&str) -> Option<String>,
 ) -> bool {
+    let ref_present = s.reference.as_deref().map(|r| !r.is_empty()).unwrap_or(false);
+    let env_set = |k: &str| env_get(k).map(|v| !v.is_empty()).unwrap_or(false);
     match s.kind {
         SourceKind::Local => has_local,
         SourceKind::Env => s
@@ -75,7 +80,38 @@ pub fn source_configured(
             .and_then(env_get)
             .map(|v| !v.is_empty())
             .unwrap_or(false),
-        _ => false, // gated kinds never resolve in CR-1
+        SourceKind::Vault => ref_present && env_set("VAULT_ADDR"),
+        SourceKind::AwsKv => ref_present && (env_set("AWS_REGION") || env_set("AWS_DEFAULT_REGION")),
+        SourceKind::GcpKv => {
+            ref_present
+                && (env_set("GOOGLE_APPLICATION_CREDENTIALS") || env_set("GOOGLE_CLOUD_PROJECT"))
+        }
+        SourceKind::AzureKv => ref_present && env_set("AZURE_KEYVAULT_URL"),
+        SourceKind::TokenBroker | SourceKind::WorkloadIdentity => false, // gated (CR-3)
+    }
+}
+
+/// A non-secret hint about why a source is (un)configured. `None` when configured.
+pub fn source_detail(
+    s: &SourceConfig,
+    has_local: bool,
+    env_get: &dyn Fn(&str) -> Option<String>,
+) -> Option<String> {
+    if source_configured(s, has_local, env_get) {
+        return None;
+    }
+    let ref_empty = s.reference.as_deref().map(|r| r.is_empty()).unwrap_or(true);
+    let missing = |label: &str| Some(format!("{label} not set"));
+    match s.kind {
+        SourceKind::Local => Some("no value stored".to_string()),
+        SourceKind::Env if ref_empty => Some("ref is empty".to_string()),
+        SourceKind::Env => missing(s.reference.as_deref().unwrap_or("")),
+        _ if ref_empty => Some("ref is empty".to_string()),
+        SourceKind::Vault => missing("VAULT_ADDR"),
+        SourceKind::AwsKv => missing("AWS_REGION"),
+        SourceKind::GcpKv => missing("GOOGLE_APPLICATION_CREDENTIALS / GOOGLE_CLOUD_PROJECT"),
+        SourceKind::AzureKv => missing("AZURE_KEYVAULT_URL"),
+        SourceKind::TokenBroker | SourceKind::WorkloadIdentity => Some("waits on CR-3".to_string()),
     }
 }
 
@@ -177,6 +213,7 @@ impl Credentials {
                 reference: s.reference.clone(),
                 configured: source_configured(s, has_local, &env_get),
                 gated: s.kind.gated(),
+                detail: source_detail(s, has_local, &env_get),
             })
             .collect();
         let (resolved, resolved_via) = resolve(&cfg.sources, has_local, &env_get);
@@ -209,15 +246,13 @@ impl Credentials {
         let mut seen = HashSet::new();
         for s in &sources {
             if s.kind.gated() {
-                return Err(PutError::Invalid(format!(
-                    "source kind {:?} is gated in CR-1",
-                    s.kind
-                )));
+                return Err(PutError::Invalid(format!("source kind {:?} is gated", s.kind)));
             }
-            if matches!(s.kind, SourceKind::Env) && s.reference.as_deref().unwrap_or("").is_empty()
+            if !matches!(s.kind, SourceKind::Local)
+                && s.reference.as_deref().unwrap_or("").is_empty()
             {
                 return Err(PutError::Invalid(
-                    "env source requires a non-empty ref".to_string(),
+                    "this source kind requires a non-empty ref".to_string(),
                 ));
             }
             if !seen.insert(s.kind) {
@@ -334,12 +369,55 @@ mod resolver_tests {
     }
 
     #[test]
-    fn gated_never_resolves() {
-        let s = [src(SourceKind::Vault, Some("secret/x"))];
-        assert_eq!(resolve(&s, true, &no_env), (false, None));
-        assert!(SourceKind::Vault.gated());
+    fn gated_kinds_are_only_broker_and_workload() {
+        let tb = [src(SourceKind::TokenBroker, Some("https://broker"))];
+        assert_eq!(resolve(&tb, true, &no_env), (false, None));
+        assert!(SourceKind::TokenBroker.gated());
+        assert!(SourceKind::WorkloadIdentity.gated());
+        for k in [SourceKind::Vault, SourceKind::AwsKv, SourceKind::GcpKv, SourceKind::AzureKv] {
+            assert!(!k.gated());
+        }
         assert!(!SourceKind::Env.gated());
         assert!(!SourceKind::Local.gated());
+    }
+
+    #[test]
+    fn managers_resolve_with_ref_and_ambient_env() {
+        let vault = src(SourceKind::Vault, Some("secret/data/x"));
+        let addr = |k: &str| (k == "VAULT_ADDR").then(|| "http://v:8200".to_string());
+        assert!(source_configured(&vault, false, &addr));
+        assert!(!source_configured(&vault, false, &no_env)); // VAULT_ADDR missing
+        assert!(!source_configured(&src(SourceKind::Vault, None), false, &addr)); // ref missing
+
+        let aws = src(SourceKind::AwsKv, Some("prod/key"));
+        assert!(source_configured(&aws, false, &|k: &str| (k == "AWS_REGION").then(|| "us-east-1".to_string())));
+        assert!(source_configured(&aws, false, &|k: &str| (k == "AWS_DEFAULT_REGION").then(|| "eu-west-1".to_string())));
+
+        let gcp = src(SourceKind::GcpKv, Some("projects/p/secrets/x"));
+        assert!(source_configured(&gcp, false, &|k: &str| (k == "GOOGLE_CLOUD_PROJECT").then(|| "p".to_string())));
+
+        let azure = src(SourceKind::AzureKv, Some("x"));
+        assert!(source_configured(&azure, false, &|k: &str| (k == "AZURE_KEYVAULT_URL").then(|| "https://v.vault.azure.net".to_string())));
+    }
+
+    #[test]
+    fn source_detail_explains_status() {
+        let vault = src(SourceKind::Vault, Some("secret/x"));
+        assert_eq!(source_detail(&vault, false, &no_env).as_deref(), Some("VAULT_ADDR not set"));
+        let addr = |k: &str| (k == "VAULT_ADDR").then(|| "http://v".to_string());
+        assert_eq!(source_detail(&vault, false, &addr), None);
+        assert_eq!(
+            source_detail(&src(SourceKind::Vault, None), false, &addr).as_deref(),
+            Some("ref is empty"),
+        );
+        assert_eq!(
+            source_detail(&src(SourceKind::AwsKv, Some("k")), false, &no_env).as_deref(),
+            Some("AWS_REGION not set"),
+        );
+        assert_eq!(
+            source_detail(&src(SourceKind::TokenBroker, Some("https://b")), false, &no_env).as_deref(),
+            Some("waits on CR-3"),
+        );
     }
 
     #[test]
@@ -428,23 +506,20 @@ mod store_tests {
     }
 
     #[test]
-    fn put_rejects_gated_and_duplicate_kinds() {
+    fn put_rejects_gated_duplicate_and_empty_ref() {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
+        assert!(c.put("x", vec![cfg(SourceKind::TokenBroker, Some("https://b"))], None).is_err());
         assert!(c
-            .put("x", vec![cfg(SourceKind::Vault, Some("p"))], None)
-            .is_err());
-        assert!(c
-            .put(
-                "x",
-                vec![
-                    cfg(SourceKind::Env, Some("A")),
-                    cfg(SourceKind::Env, Some("B"))
-                ],
-                None
-            )
+            .put("x", vec![cfg(SourceKind::Env, Some("A")), cfg(SourceKind::Env, Some("B"))], None)
             .is_err());
         assert!(c.put("x", vec![cfg(SourceKind::Env, None)], None).is_err());
+        assert!(c.put("x", vec![cfg(SourceKind::Vault, None)], None).is_err());
+        let st = c.put("x", vec![cfg(SourceKind::Vault, Some("secret/x"))], None).unwrap();
+        assert_eq!(st.sources[0].kind, SourceKind::Vault);
+        assert!(!st.sources[0].gated);
+        assert!(!st.sources[0].configured); // no VAULT_ADDR in the test env
+        assert!(st.sources[0].detail.is_some());
     }
 
     #[test]
