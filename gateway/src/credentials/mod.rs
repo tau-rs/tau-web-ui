@@ -1,7 +1,9 @@
 //! LLM-backend credentials: an ordered source **chain** (first-resolves-wins),
 //! tau's "provider chain, never a vault" model with the gateway as the parent-app
-//! resolver. CR-1 ships Env + Local; the rest are gated (CR-2/CR-3). The store is
-//! global (per gateway `data_root`); secret values are write-only and never echoed.
+//! resolver. CR-1 shipped Env + Local; CR-2 ungated the SecretManagers (Vault /
+//! AWS / GCP / Azure KV), resolving them by ambient-env presence (no secret fetched);
+//! TokenBroker / WorkloadIdentity remain gated (CR-3). The store is global (per
+//! gateway `data_root`); secret values are write-only and never echoed.
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
