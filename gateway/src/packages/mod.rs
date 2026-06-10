@@ -2,6 +2,7 @@
 //! mutates it; `CliOps` is the seam for real `tau install/list/verify --json`.
 
 use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 
 use anyhow::{anyhow, Result};
@@ -128,12 +129,37 @@ impl PackageOps for MockOps {
     }
 }
 
+fn parse_list_json(stdout: &str) -> Vec<Package> {
+    serde_json::from_str::<Vec<serde_json::Value>>(stdout.trim())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| Package {
+            name: v["name"].as_str().unwrap_or("").to_string(),
+            version: v["version"].as_str().unwrap_or("").to_string(),
+            source: v["source"].as_str().unwrap_or("").to_string(),
+            scope: v["scope"].as_str().unwrap_or("").to_string(),
+            version_count: v["version_count"].as_u64().unwrap_or(0) as u32,
+        })
+        .collect()
+}
+
+fn parse_verify_jsonl(stdout: &str) -> Vec<VerifyResult> {
+    stdout
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter(|v| v.get("event").and_then(|e| e.as_str()) == Some("verify_package"))
+        .map(|v| VerifyResult {
+            name: v["name"].as_str().unwrap_or("").to_string(),
+            status: v["status"].as_str().unwrap_or("unverified").to_string(),
+        })
+        .collect()
+}
+
 /// Seam: shell real `tau install/list/verify --json`. Not wired in v1 (mock covers
 /// fake-tau-serve). list/verify return empty; mutations return a graceful error.
 pub struct CliOps {
-    #[allow(dead_code)]
     bin: PathBuf,
-    #[allow(dead_code)]
     project: PathBuf,
 }
 
@@ -141,11 +167,24 @@ impl CliOps {
     pub fn new(bin: PathBuf, project: PathBuf) -> Self {
         CliOps { bin, project }
     }
+
+    /// Run a tau subcommand in the project dir; returns (success, stdout, stderr).
+    fn run(&self, args: &[&str]) -> (bool, String, String) {
+        match Command::new(&self.bin).args(args).current_dir(&self.project).output() {
+            Ok(o) => (
+                o.status.success(),
+                String::from_utf8_lossy(&o.stdout).into_owned(),
+                String::from_utf8_lossy(&o.stderr).into_owned(),
+            ),
+            Err(e) => (false, String::new(), e.to_string()),
+        }
+    }
 }
 
 impl PackageOps for CliOps {
     fn list(&self) -> Vec<Package> {
-        Vec::new()
+        let (_, out, _) = self.run(&["list", "packages", "--json"]);
+        parse_list_json(&out)
     }
     fn install(&self, _git_url: &str) -> Result<Package> {
         Err(anyhow!(
@@ -159,10 +198,16 @@ impl PackageOps for CliOps {
         Err(anyhow!("real-tau update not wired yet"))
     }
     fn resolve(&self) -> Result<Vec<Package>> {
-        Ok(Vec::new())
+        let (ok, _, err) = self.run(&["resolve"]);
+        if !ok {
+            return Err(anyhow!("tau resolve failed: {}", err.trim()));
+        }
+        Ok(self.list())
     }
     fn verify(&self) -> Vec<VerifyResult> {
-        Vec::new()
+        // Exit code 2 (drift present) is data, not failure — parse stdout regardless.
+        let (_, out, _) = self.run(&["verify", "--json"]);
+        parse_verify_jsonl(&out)
     }
 }
 
@@ -176,6 +221,26 @@ mod tests {
             name_from_url("https://github.com/acme/researcher-pro.git"),
             "researcher-pro"
         );
+    }
+
+    #[test]
+    fn parse_list_json_maps_packages() {
+        let json = include_str!("../../tests/fixtures/tau-json/pkg-list.json");
+        let pkgs = parse_list_json(json);
+        assert_eq!(pkgs.len(), 1);
+        assert_eq!(pkgs[0].name, "demo-skill");
+        assert_eq!(pkgs[0].version, "0.1.0");
+        assert_eq!(pkgs[0].scope, "global");
+        assert_eq!(pkgs[0].version_count, 1);
+    }
+
+    #[test]
+    fn parse_verify_jsonl_keeps_package_events() {
+        let jsonl = include_str!("../../tests/fixtures/tau-json/pkg-verify.jsonl");
+        let results = parse_verify_jsonl(jsonl);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "demo-skill");
+        assert_eq!(results[0].status, "ok");
     }
 
     #[test]
