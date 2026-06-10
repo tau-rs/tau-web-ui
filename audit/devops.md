@@ -238,6 +238,14 @@ jobs call the identical `just` verbs, **local == CI**:
 Note tau-ui uses **pnpm** (`web/package.json:5`, `packageManager: pnpm@10.14.0`),
 so the web verbs wrap `pnpm …` and CI keeps `--frozen-lockfile`.
 
+**Keep git hooks lightweight.** When you add lefthook here, **pre-commit runs ONLY
+the fast `just` verbs** — `fmt`, `lint`, and fast staged tests for **both** stacks
+(`eslint`/`tsc`/`vitest` + `clippy`/`cargo test` on the Rust gateway). It must stay in
+the seconds range and never block. **No heavy or container-based checks belong in git
+hooks**: the full OS matrix, e2e, and mutation testing run in the T2 `v*`-tag heavy
+tier and T3 schedules — never on `git commit`/`git push`. A pre-push hook, if present,
+runs at most a fast `just ci` subset.
+
 ---
 
 ## 4. Implementation checklist (ordered; a future session can execute)
@@ -264,7 +272,9 @@ Priority + one-line rationale per item. cosign/SLSA are explicitly phase-2.
       `(.github/workflows/ci.yml:73,75,118)` *(DV10)*
 - [ ] **(Medium)** **Add `lefthook.yml` + root `justfile`** with `fmt/lint/test/deny/ci/heavy/fix`
       fanning to `eslint`/`tsc`/`vitest` (web) **and** `clippy`/`cargo test`/`cargo deny`
-      (gateway); point lefthook and CI at the same verbs — local == CI. *(DV9)*
+      (gateway); point lefthook and CI at the same verbs — local == CI.
+      **pre-commit = fast `just` verbs only; no heavy/container checks in hooks** —
+      heavy gates live in the T2/T3 CI tiers, not on `git commit`/`git push`. *(DV9)*
 - [ ] **(Medium)** **Add `nightly.yml` (T3)** — full matrix + e2e on a schedule;
       currently missing vs siblings, catches env/dep drift the fast gate skips. *(DV5)*
 - [ ] **(Medium)** **Add weekly mutation testing** — `cargo-mutants` (gateway) +
