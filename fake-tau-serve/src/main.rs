@@ -78,6 +78,17 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .await?;
             }
+            "meta.env" => {
+                // Presence only — never echo the value (it may be a secret).
+                let var = req["params"]["var"].as_str().unwrap_or("");
+                let present =
+                    !var.is_empty() && std::env::var(var).map(|v| !v.is_empty()).unwrap_or(false);
+                write_line(
+                    &mut *out.lock().await,
+                    &json!({"jsonrpc":"2.0","id":id,"result":{"present":present}}),
+                )
+                .await?;
+            }
             "runtime.run_streaming" => {
                 let agent = req["params"]["agent"]
                     .as_str()

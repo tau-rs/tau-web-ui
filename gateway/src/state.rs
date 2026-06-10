@@ -174,10 +174,13 @@ impl AppState {
                 return Ok(c.clone());
             }
         }
-        let c = ServeClient::spawn(
+        let envs = crate::credentials::Credentials::new(self.0.data_root.clone())
+            .credential_env(&|k| std::env::var(k).ok());
+        let c = ServeClient::spawn_with_env(
             self.0.bin.clone(),
             self.0.project.clone(),
             self.0.no_sandbox,
+            envs,
         )
         .await?;
         *guard = Some(c.clone());
