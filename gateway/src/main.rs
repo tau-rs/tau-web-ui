@@ -16,12 +16,15 @@ async fn main() -> anyhow::Result<()> {
         .or_else(|| std::env::var("TAU_BIN").ok().map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("tau"));
     let no_sandbox = args.iter().any(|a| a == "--no-sandbox");
+    let serve_kind = flag(&args, "--serve-kind"); // "real" | "mock" | None (autodetect)
+    let is_mock_override = serve_kind.as_deref().map(|k| k.eq_ignore_ascii_case("mock"));
     let port: u16 = flag(&args, "--port")
         .and_then(|p| p.parse().ok())
         .unwrap_or(4317);
 
     let data_root = data_root();
-    let reg = ProjectRegistry::load(bin, no_sandbox, data_root).await?;
+    let reg =
+        ProjectRegistry::load_with_kind(bin, no_sandbox, data_root, is_mock_override).await?;
 
     // Auto-register the --project path (or the cwd if none given) so the existing
     // single-project launch still lands on a usable project.
