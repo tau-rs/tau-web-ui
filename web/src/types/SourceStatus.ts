@@ -4,4 +4,4 @@ import type { SourceKind } from "./SourceKind";
 /**
  * Per-source status — NEVER carries a secret value.
  */
-export type SourceStatus = { kind: SourceKind, ref: string | null, configured: boolean, gated: boolean, detail: string | null, };
+export type SourceStatus = { kind: SourceKind, ref: string | null, configured: boolean, detail: string | null, };
