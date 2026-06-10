@@ -14,15 +14,15 @@ const KIND_LABEL: Record<SourceKind, string> = {
   token_broker: "Token broker",
   workload_identity: "Workload identity",
 };
-const REAL_KINDS: SourceKind[] = ["env", "local"];
-const GATED_KINDS: SourceKind[] = [
-  "vault",
-  "aws_kv",
-  "gcp_kv",
-  "azure_kv",
-  "token_broker",
-  "workload_identity",
-];
+const ADDABLE_KINDS: SourceKind[] = ["env", "local", "vault", "aws_kv", "gcp_kv", "azure_kv"];
+const GATED_KINDS: SourceKind[] = ["token_broker", "workload_identity"];
+const KIND_PLACEHOLDER: Partial<Record<SourceKind, string>> = {
+  env: "ANTHROPIC_API_KEY",
+  vault: "secret/data/anthropic",
+  aws_kv: "prod/anthropic-key",
+  gcp_kv: "projects/PROJECT/secrets/anthropic",
+  azure_kv: "anthropic",
+};
 
 interface Row {
   kind: SourceKind;
@@ -46,6 +46,7 @@ export function CredentialChainEditor({
   const [saving, setSaving] = useState(false);
   const hasLocal = rows.some((r) => r.kind === "local");
   const used = new Set(rows.map((r) => r.kind));
+  const statusByKind = new Map((status?.sources ?? []).map((s) => [s.kind, s]));
 
   const add = (kind: SourceKind) => setRows((rs) => [...rs, { kind, ref: "" }]);
   const remove = (i: number) => setRows((rs) => rs.filter((_, j) => j !== i));
@@ -66,7 +67,7 @@ export function CredentialChainEditor({
     setSaving(true);
     const sources: SourceConfig[] = rows.map((r) => ({
       kind: r.kind,
-      ref: r.kind === "env" ? r.ref : null,
+      ref: r.kind === "local" ? null : r.ref,
     }));
     try {
       await putCredential(backend, {
@@ -113,17 +114,23 @@ export function CredentialChainEditor({
               </button>
             </div>
             <span className={`${chip} border-accent/40 text-accent`}>{KIND_LABEL[r.kind]}</span>
-            {r.kind === "env" ? (
+            {r.kind === "local" ? (
+              <span className="flex-1 text-[10px] text-muted">resolves from the local store</span>
+            ) : (
               <input
-                aria-label={`env var name ${i}`}
-                placeholder="ANTHROPIC_API_KEY"
+                aria-label={`${KIND_LABEL[r.kind]} ref ${i}`}
+                placeholder={KIND_PLACEHOLDER[r.kind]}
                 value={r.ref}
                 onChange={(e) => setRef(i, e.target.value)}
                 className={`flex-1 font-mono ${field}`}
               />
-            ) : (
-              <span className="flex-1 text-[10px] text-muted">resolves from the local store</span>
             )}
+            {(() => {
+              const st = statusByKind.get(r.kind);
+              return st && !st.configured && st.detail ? (
+                <span className="flex-none text-[9px] text-amber-700">⚠ {st.detail}</span>
+              ) : null;
+            })()}
             <button
               type="button"
               aria-label={`remove ${KIND_LABEL[r.kind]}`}
@@ -158,7 +165,7 @@ export function CredentialChainEditor({
 
       <div className="mt-2 flex flex-wrap items-center gap-1">
         <span className="text-[9px] uppercase text-muted">add source</span>
-        {REAL_KINDS.filter((k) => !used.has(k)).map((k) => (
+        {ADDABLE_KINDS.filter((k) => !used.has(k)).map((k) => (
           <button
             key={k}
             type="button"
