@@ -1,0 +1,11 @@
+[project]
+name = "ollama-smoke"
+
+[agents.local]
+display_name = "local ollama agent"
+package      = "ollama@^0.1"
+llm_backend  = "ollama"
+model        = "mistral"
+
+[agents.local.config]
+base_url = "http://localhost:11434"
