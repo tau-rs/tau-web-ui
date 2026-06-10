@@ -293,8 +293,8 @@ test("providers: set a Local credential via the inline chain editor", async ({ p
   // open the chain editor for anthropic
   await row.getByRole("button", { name: "set credential" }).click();
   await expect(page.getByText(/credential chain — anthropic/i)).toBeVisible();
-  // a gated source is disabled (Token broker waits on CR-3; Vault is ungated since CR-2)
-  await expect(page.getByRole("button", { name: "Token broker" })).toBeDisabled();
+  // every kind is addable now (Token broker became addable in CR-3)
+  await expect(page.getByRole("button", { name: "Token broker" })).toBeEnabled();
   // add a Local source, type a value, save
   await page.getByRole("button", { name: "Local" }).click();
   await page.getByLabel("local secret value").fill("sk-demo");
@@ -309,8 +309,8 @@ test("providers: add a Vault source — ungated, shows the ambient-env hint", as
   await expect(row).toBeVisible({ timeout: 5000 });
   await row.getByRole("button", { name: "set credential" }).click();
   await expect(page.getByText(/credential chain — anthropic/i)).toBeVisible();
-  // Token broker stays gated; Vault is now addable
-  await expect(page.getByRole("button", { name: "Token broker" })).toBeDisabled();
+  // Token broker is addable now (CR-3); Vault remains addable
+  await expect(page.getByRole("button", { name: "Token broker" })).toBeEnabled();
   await page.getByRole("button", { name: "Vault" }).click();
   // Target the Vault ref input by its index-independent placeholder: a prior test
   // in the same run may have persisted a Local row to anthropic's shared store,
@@ -338,4 +338,23 @@ test("workflows: edit mode adds a step via the inline + and palette", async ({ p
   await expect(page.locator(".react-flow__node")).toHaveCount(before + 1);
   // Save → IR stays gated
   await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+});
+
+test("providers: add TokenBroker + WorkloadIdentity — addable, resolved by tau at runtime", async ({
+  page,
+}) => {
+  await page.goto("/projects/demo/providers");
+  const row = page.getByRole("row").filter({ hasText: "anthropic" });
+  await expect(row).toBeVisible({ timeout: 5000 });
+  await row.getByRole("button", { name: "set credential" }).click();
+  await expect(page.getByText(/credential chain — anthropic/i)).toBeVisible();
+  // every kind is addable now — Workload identity is enabled (no disabled group)
+  await expect(page.getByRole("button", { name: "Workload identity" })).toBeEnabled();
+  // add a Token broker (URL ref, located by placeholder — robust to row index) + a Workload identity
+  await page.getByRole("button", { name: "Token broker" }).click();
+  await page.getByPlaceholder(/gateway\.ai\.cloudflare/).fill("https://gateway.example/v1");
+  await page.getByRole("button", { name: "Workload identity" }).click();
+  await page.getByRole("button", { name: /^save$/i }).click();
+  // both persist; the neutral runtime note appears
+  await expect(page.getByText(/resolved by tau at runtime/i).first()).toBeVisible();
 });
