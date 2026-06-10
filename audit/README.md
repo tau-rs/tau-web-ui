@@ -21,6 +21,7 @@ Breakdown by file:
 - `security.md` — 5: 1 High (S1), 2 Medium (S2, S3), 2 Low (S4, S5)
 - `design.md` — 15: 3 High (D1, D10, D11), 7 Medium (D2, D3, D4, D7, D12, D13, D14), 5 Low (D5, D6, D8, D9, D15)
 - `diagnostics.md` — 6: 3 High (G1, G2, G3), 2 Medium (G4, G5), 1 Low (G6)
+- `devops.md` — DevOps & CI/CD audit: tau-ui's pipeline vs the canonical shared model (14 gaps — 4 High, 6 Medium, 4 Low — emphasizing re-converging from drift: no merge_group, missing nightly/mutation/auto-rerun-flaky, no lefthook/justfile, no supply-chain gating).
 
 ## Top 5 issues
 1. **(High, security) Unauthenticated, no-Origin-check localhost gateway** — the gateway
