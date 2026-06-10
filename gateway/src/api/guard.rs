@@ -59,6 +59,8 @@ fn header_str(req: &Request, name: header::HeaderName) -> Option<&str> {
 /// rebinding.
 pub async fn loopback_guard(req: Request, next: Next) -> Response {
     let host_ok = header_str(&req, header::HOST)
+        // Fallback for HTTP/2, which carries the authority in `:authority`
+        // (reconstructed into the URI) rather than a literal `Host` header.
         .or_else(|| req.uri().host())
         .map(host_is_loopback)
         .unwrap_or(false);
@@ -101,6 +103,14 @@ mod tests {
             "0.0.0.0",
             "169.254.1.1",
             "8.8.8.8:80",
+            // IPv4-mapped IPv6 must NOT be treated as loopback — guards against
+            // smuggling 127.0.0.1 through an IPv6 literal.
+            "::ffff:127.0.0.1",
+            "[::ffff:127.0.0.1]",
+            // Non-IP encodings that must fail to parse rather than resolve to loopback.
+            "2130706433",
+            "127.0.0.1.evil.com",
+            "localhost.evil.com",
         ] {
             assert!(!host_is_loopback(h), "expected rejected: {h}");
         }
