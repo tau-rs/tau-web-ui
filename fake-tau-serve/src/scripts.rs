@@ -61,31 +61,47 @@ fn greeter(prompt: &str) -> Vec<ScriptStep> {
 
 /// Exercises the agent-spawn-tree heuristic: a `task.spawn`/`agent.*.spawn`
 /// tool call whose children the adapter nests under it (handoff spec §1.2).
+/// Emits: fs-read (tool_call) + agent.summarizer.spawn (Agent) + agent.factcheck.spawn (Agent).
 fn researcher(prompt: &str) -> Vec<ScriptStep> {
     vec![
         step("TextDelta", json!({"text": "Planning research..."}), 40),
+        // the researcher's own tool call
         step(
             "ToolCallStarted",
-            json!({"tool":"agent.summarizer.spawn","call_id":"sp1",
-            "args":{"prompt": prompt}}),
-            30,
-        ),
-        step(
-            "ToolCallStarted",
-            json!({"tool":"fs-read","call_id":"c2","args":{"path":"/notes"}}),
+            json!({"tool":"fs-read","call_id":"c1","args":{"path":"/notes"}}),
             30,
         ),
         step(
             "ToolCallCompleted",
-            json!({"tool":"fs-read","call_id":"c2",
+            json!({"tool":"fs-read","call_id":"c1",
             "result":{"ok":true,"content":[{"type":"text","text":"notes..."}],"is_error":false}}),
-            50,
+            40,
+        ),
+        // spawn a summarizer sub-agent
+        step(
+            "ToolCallStarted",
+            json!({"tool":"agent.summarizer.spawn","call_id":"sp1","args":{"prompt": prompt}}),
+            30,
         ),
         step(
             "ToolCallCompleted",
             json!({"tool":"agent.summarizer.spawn","call_id":"sp1",
-            "result":{"ok":true,"content":[{"type":"text","text":"summary done"}],"is_error":false}}),
-            70,
+            "result":{"ok":true,"content":[{"type":"text","text":"summary done"}],"is_error":false,
+            "usage":{"input_tokens":120,"output_tokens":60,"total_tokens":180}}}),
+            60,
+        ),
+        // spawn a fact-checker sub-agent
+        step(
+            "ToolCallStarted",
+            json!({"tool":"agent.factcheck.spawn","call_id":"sp2","args":{"claims":3}}),
+            30,
+        ),
+        step(
+            "ToolCallCompleted",
+            json!({"tool":"agent.factcheck.spawn","call_id":"sp2",
+            "result":{"ok":true,"content":[{"type":"text","text":"checked"}],"is_error":false,
+            "usage":{"input_tokens":80,"output_tokens":30,"total_tokens":110}}}),
+            60,
         ),
         step(
             "TurnCompleted",
