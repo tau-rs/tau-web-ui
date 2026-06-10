@@ -17,7 +17,10 @@ async fn serve_kind_mock_override_forces_mock_sidecars_even_with_real_bin_name()
     )
     .await
     .unwrap();
-    let state = reg.state(tau_gateway::projects::WORKSPACE_ID).await.unwrap();
+    let state = reg
+        .state(tau_gateway::projects::WORKSPACE_ID)
+        .await
+        .unwrap();
     assert!(
         !state.list_tools().is_empty(),
         "mock sidecar seam should yield deterministic tools"
@@ -27,14 +30,13 @@ async fn serve_kind_mock_override_forces_mock_sidecars_even_with_real_bin_name()
 #[tokio::test]
 async fn load_defaults_to_filename_autodetect() {
     let data = tempfile::tempdir().unwrap();
-    let reg = ProjectRegistry::load_with_kind(
-        real_bin_name(),
-        true,
-        data.path().to_path_buf(),
-        None,
-    )
-    .await
-    .unwrap();
-    let state = reg.state(tau_gateway::projects::WORKSPACE_ID).await.unwrap();
+    let reg =
+        ProjectRegistry::load_with_kind(real_bin_name(), true, data.path().to_path_buf(), None)
+            .await
+            .unwrap();
+    let state = reg
+        .state(tau_gateway::projects::WORKSPACE_ID)
+        .await
+        .unwrap();
     assert!(state.list_tools().is_empty());
 }

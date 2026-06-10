@@ -8,7 +8,10 @@ use std::path::PathBuf;
 use tau_gateway::serve_client::{RunItem, ServeClient};
 
 fn real_bin() -> Option<PathBuf> {
-    std::env::var("TAU_REAL_BIN").ok().map(PathBuf::from).filter(|p| p.exists())
+    std::env::var("TAU_REAL_BIN")
+        .ok()
+        .map(PathBuf::from)
+        .filter(|p| p.exists())
 }
 
 fn fixture() -> PathBuf {
@@ -19,7 +22,9 @@ fn fixture() -> PathBuf {
 }
 
 async fn ollama_up() -> bool {
-    tokio::net::TcpStream::connect("127.0.0.1:11434").await.is_ok()
+    tokio::net::TcpStream::connect("127.0.0.1:11434")
+        .await
+        .is_ok()
 }
 
 #[tokio::test]
@@ -35,15 +40,25 @@ async fn real_tau_ollama_streams_a_completed_run() {
 
     let client = ServeClient::spawn(bin, fixture(), true).await.unwrap();
     let hs = client.handshake().await;
-    assert!(hs.agents.iter().any(|a| a == "local"), "agents: {:?}", hs.agents);
+    assert!(
+        hs.agents.iter().any(|a| a == "local"),
+        "agents: {:?}",
+        hs.agents
+    );
 
-    let (_id, mut rx) = client.run_streaming("local", "Say hello in one short sentence.").await.unwrap();
+    let (_id, mut rx) = client
+        .run_streaming("local", "Say hello in one short sentence.")
+        .await
+        .unwrap();
     let mut saw_text = false;
     let mut completed = false;
     while let Some(item) = rx.recv().await {
         match item {
             RunItem::Event { kind, .. } if kind == "TextDelta" => saw_text = true,
-            RunItem::Final { .. } => { completed = true; break; }
+            RunItem::Final { .. } => {
+                completed = true;
+                break;
+            }
             RunItem::Error(e) => panic!("run errored: {} {}", e.code, e.message),
             _ => {}
         }

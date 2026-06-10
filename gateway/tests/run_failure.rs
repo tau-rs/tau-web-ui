@@ -13,10 +13,14 @@ fn mock_bin() -> PathBuf {
 #[tokio::test]
 async fn llm_error_maps_to_failed_run_with_detail() {
     let data = tempfile::tempdir().unwrap();
-    let reg = ProjectRegistry::load_with_kind(mock_bin(), true, data.path().to_path_buf(), Some(true))
+    let reg =
+        ProjectRegistry::load_with_kind(mock_bin(), true, data.path().to_path_buf(), Some(true))
+            .await
+            .unwrap();
+    let state = reg
+        .state(tau_gateway::projects::WORKSPACE_ID)
         .await
         .unwrap();
-    let state = reg.state(tau_gateway::projects::WORKSPACE_ID).await.unwrap();
 
     let run_id = state.launch("boom".into(), "go".into()).await.unwrap();
 

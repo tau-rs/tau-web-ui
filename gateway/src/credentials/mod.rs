@@ -286,9 +286,10 @@ impl Credentials {
         let cfg = self.read_config();
         let mut out = Vec::new();
         for backend in cfg.backends.keys() {
-            if let (Some(var), Some(val)) =
-                (canonical_env_var(backend), self.resolve_secret(backend, env_get))
-            {
+            if let (Some(var), Some(val)) = (
+                canonical_env_var(backend),
+                self.resolve_secret(backend, env_get),
+            ) {
                 out.push((var.to_string(), val));
             }
         }
@@ -686,10 +687,17 @@ mod store_tests {
     fn credential_env_injects_local_value_under_canonical_var() {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
-        c.put("anthropic", vec![cfg(SourceKind::Local, None)], Some("sk-abc".into()))
-            .unwrap();
+        c.put(
+            "anthropic",
+            vec![cfg(SourceKind::Local, None)],
+            Some("sk-abc".into()),
+        )
+        .unwrap();
         let env = c.credential_env(&|_| None);
-        assert_eq!(env, vec![("ANTHROPIC_API_KEY".to_string(), "sk-abc".to_string())]);
+        assert_eq!(
+            env,
+            vec![("ANTHROPIC_API_KEY".to_string(), "sk-abc".to_string())]
+        );
     }
 
     #[test]
@@ -700,17 +708,28 @@ mod store_tests {
             .unwrap();
         let getter = |k: &str| (k == "MY_OAI").then(|| "sk-env".to_string());
         let env = c.credential_env(&getter);
-        assert_eq!(env, vec![("OPENAI_API_KEY".to_string(), "sk-env".to_string())]);
+        assert_eq!(
+            env,
+            vec![("OPENAI_API_KEY".to_string(), "sk-env".to_string())]
+        );
     }
 
     #[test]
     fn credential_env_skips_unreadable_and_unknown_backends() {
         let dir = tempfile::tempdir().unwrap();
         let c = Credentials::new(dir.path().to_path_buf());
-        c.put("anthropic", vec![cfg(SourceKind::Vault, Some("secret/x"))], None)
-            .unwrap();
-        c.put("acme-llm", vec![cfg(SourceKind::Local, None)], Some("v".into()))
-            .unwrap();
+        c.put(
+            "anthropic",
+            vec![cfg(SourceKind::Vault, Some("secret/x"))],
+            None,
+        )
+        .unwrap();
+        c.put(
+            "acme-llm",
+            vec![cfg(SourceKind::Local, None)],
+            Some("v".into()),
+        )
+        .unwrap();
         let getter = |k: &str| (k == "VAULT_ADDR").then(|| "http://v".to_string());
         assert!(c.credential_env(&getter).is_empty());
     }
