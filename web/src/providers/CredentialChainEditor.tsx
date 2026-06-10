@@ -93,54 +93,54 @@ export function CredentialChainEditor({
       </div>
 
       <div className="space-y-1.5">
-        {rows.map((r, i) => (
-          <div key={`${r.kind}-${i}`} className="flex items-center gap-2">
-            <div className="flex flex-col">
+        {rows.map((r, i) => {
+          const st = statusByKind.get(r.kind);
+          return (
+            <div key={`${r.kind}-${i}`} className="flex items-center gap-2">
+              <div className="flex flex-col">
+                <button
+                  type="button"
+                  aria-label={`move ${KIND_LABEL[r.kind]} up`}
+                  onClick={() => move(i, -1)}
+                  className="text-[8px] text-muted hover:text-fg"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  aria-label={`move ${KIND_LABEL[r.kind]} down`}
+                  onClick={() => move(i, 1)}
+                  className="text-[8px] text-muted hover:text-fg"
+                >
+                  ▼
+                </button>
+              </div>
+              <span className={`${chip} border-accent/40 text-accent`}>{KIND_LABEL[r.kind]}</span>
+              {r.kind === "local" ? (
+                <span className="flex-1 text-[10px] text-muted">resolves from the local store</span>
+              ) : (
+                <input
+                  aria-label={`${KIND_LABEL[r.kind]} ref ${i}`}
+                  placeholder={KIND_PLACEHOLDER[r.kind]}
+                  value={r.ref}
+                  onChange={(e) => setRef(i, e.target.value)}
+                  className={`flex-1 font-mono ${field}`}
+                />
+              )}
+              {st && !st.configured && st.detail && (
+                <span className="flex-none text-[9px] text-amber-700">⚠ {st.detail}</span>
+              )}
               <button
                 type="button"
-                aria-label={`move ${KIND_LABEL[r.kind]} up`}
-                onClick={() => move(i, -1)}
-                className="text-[8px] text-muted hover:text-fg"
+                aria-label={`remove ${KIND_LABEL[r.kind]}`}
+                onClick={() => remove(i)}
+                className="text-xs text-muted hover:text-st-error"
               >
-                ▲
-              </button>
-              <button
-                type="button"
-                aria-label={`move ${KIND_LABEL[r.kind]} down`}
-                onClick={() => move(i, 1)}
-                className="text-[8px] text-muted hover:text-fg"
-              >
-                ▼
+                ✕
               </button>
             </div>
-            <span className={`${chip} border-accent/40 text-accent`}>{KIND_LABEL[r.kind]}</span>
-            {r.kind === "local" ? (
-              <span className="flex-1 text-[10px] text-muted">resolves from the local store</span>
-            ) : (
-              <input
-                aria-label={`${KIND_LABEL[r.kind]} ref ${i}`}
-                placeholder={KIND_PLACEHOLDER[r.kind]}
-                value={r.ref}
-                onChange={(e) => setRef(i, e.target.value)}
-                className={`flex-1 font-mono ${field}`}
-              />
-            )}
-            {(() => {
-              const st = statusByKind.get(r.kind);
-              return st && !st.configured && st.detail ? (
-                <span className="flex-none text-[9px] text-amber-700">⚠ {st.detail}</span>
-              ) : null;
-            })()}
-            <button
-              type="button"
-              aria-label={`remove ${KIND_LABEL[r.kind]}`}
-              onClick={() => remove(i)}
-              className="text-xs text-muted hover:text-st-error"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {hasLocal && (
