@@ -113,12 +113,16 @@ impl AppState {
                 .to_string();
             Box::new(ship::MockShip::new(project_name))
         } else {
-            Box::new(ship::CliShip)
+            Box::new(ship::CliShip::new(bin.clone(), project.clone()))
         };
         let check_source: Box<dyn CheckSource> = if is_mock {
             Box::new(checks::MockChecks)
         } else {
-            Box::new(checks::CliChecks)
+            Box::new(checks::CliChecks::new(
+                bin.clone(),
+                project.clone(),
+                no_sandbox,
+            ))
         };
         let graph_source: Box<dyn WorkflowGraphSource> = if is_mock {
             Box::new(graph::MockGraph)
@@ -549,6 +553,13 @@ impl AppState {
 
     pub fn build(&self, target: &str) -> Result<Bundle, BuildError> {
         self.0.ship_source.build(target)
+    }
+
+    pub fn verify(
+        &self,
+        bundle_path: &str,
+    ) -> Result<crate::ship::VerifyOutcome, crate::ship::BuildError> {
+        self.0.ship_source.verify(bundle_path)
     }
 
     pub fn checks(&self) -> CheckReport {

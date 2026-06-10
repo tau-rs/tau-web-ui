@@ -1,0 +1,8 @@
+{"categories":["config","lockfile","packages","sandbox","plugins","skills"],"fast":false,"project_root":"/p","type":"run_started"}
+{"category":"config","duration_ms":0,"findings":[{"category":"config","detail":null,"location":{"column":null,"line":null,"path":"/p/tau.toml"},"remediation":"fix tau.toml per the error message above","rule_id":"tau.config.invalid","severity":"error","structured":{"kind":"Parse"},"summary":"failed to parse project tau.toml"}],"status":"failed","type":"check_finished"}
+{"category":"lockfile","duration_ms":0,"findings":[],"status":"ok","type":"check_finished"}
+{"category":"packages","duration_ms":0,"findings":[],"status":{"skipped":"tau.toml malformed (see config check)"},"type":"check_finished"}
+{"category":"sandbox","duration_ms":0,"findings":[],"status":{"skipped":"tau.toml malformed"},"type":"check_finished"}
+{"category":"plugins","duration_ms":0,"findings":[],"status":{"skipped":"no lockfile"},"type":"check_finished"}
+{"category":"skills","duration_ms":0,"findings":[],"status":{"skipped":"no lockfile"},"type":"check_finished"}
+{"duration_ms":0,"exit_code":2,"summary":{"by_severity":{"error":1,"needs-setup":0},"failed":1,"ok":1},"type":"run_finished"}

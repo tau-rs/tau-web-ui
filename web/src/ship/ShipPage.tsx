@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Target } from "../types/Target";
 import type { Bundle } from "../types/Bundle";
-import type { BuildStep } from "../types/BuildStep";
-import { listTargets, listBundles, build } from "../api/ship";
+import type { VerifyOutcome } from "../types/VerifyOutcome";
+import { listTargets, listBundles, build, verifyBundle } from "../api/ship";
 
 function humanSize(bytes: number | bigint): string {
   // ts-rs exports the Rust `u64` `size_bytes` as `bigint`; coerce to number.
@@ -24,12 +24,14 @@ export function ShipPage() {
   const [target, setTarget] = useState("");
   const [building, setBuilding] = useState(false);
   const [lastBuild, setLastBuild] = useState<Bundle | null>(null);
+  const [verifying, setVerifying] = useState<string | null>(null);
+  const [verifyResult, setVerifyResult] = useState<Record<string, VerifyOutcome>>({});
 
   useEffect(() => {
     listTargets()
       .then((t) => {
         setTargets(t);
-        setTarget((cur) => cur || t.find((x) => x.status === "ready")?.name || "");
+        setTarget((cur) => cur || t.find((x) => x.status === "available")?.triple || "");
       })
       .catch(() => {});
     listBundles()
@@ -51,7 +53,19 @@ export function ShipPage() {
     }
   }
 
-  const ready = targets.filter((t) => t.status === "ready");
+  async function onVerify(path: string) {
+    setVerifying(path);
+    try {
+      const v = await verifyBundle(path);
+      setVerifyResult((p) => ({ ...p, [path]: v }));
+    } catch {
+      /* surface nothing on the mock */
+    } finally {
+      setVerifying(null);
+    }
+  }
+
+  const ready = targets.filter((t) => t.status === "available");
 
   return (
     <div className="space-y-4 p-4">
@@ -61,7 +75,7 @@ export function ShipPage() {
         <div className="text-[9px] uppercase text-muted">targets</div>
         <div className="flex flex-wrap gap-2">
           {targets.map((t) => (
-            <TargetCard key={t.name} target={t} />
+            <TargetCard key={t.triple} target={t} />
           ))}
         </div>
       </section>
@@ -80,8 +94,8 @@ export function ShipPage() {
             className="rounded-md border border-border bg-surface px-2 py-1 text-xs"
           >
             {ready.map((t) => (
-              <option key={t.name} value={t.name}>
-                {t.name}
+              <option key={t.triple} value={t.triple}>
+                {t.triple}
               </option>
             ))}
           </select>
@@ -93,7 +107,7 @@ export function ShipPage() {
             {building ? "building…" : "Build"}
           </button>
         </div>
-        {lastBuild && <StepTimeline steps={lastBuild.steps} />}
+        {lastBuild && <div className="text-[10px] text-muted">built {lastBuild.path}</div>}
       </section>
 
       <section className="space-y-1.5">
@@ -102,24 +116,36 @@ export function ShipPage() {
           <thead>
             <tr className="border-b border-border text-left text-muted">
               <th className="py-1 pr-2 font-medium">artifact</th>
-              <th className="px-2 py-1 font-medium">target</th>
-              <th className="px-2 py-1 font-medium">size</th>
               <th className="px-2 py-1 font-medium">hash</th>
-              <th className="px-2 py-1 font-medium">drift</th>
+              <th className="px-2 py-1 font-medium">size</th>
               <th className="px-2 py-1 font-medium">built</th>
+              <th className="px-2 py-1 font-medium">verify</th>
             </tr>
           </thead>
           <tbody>
             {bundles.map((b, i) => (
-              <tr key={`${b.hash}-${i}`} className="border-b border-border/60">
-                <td className="py-1 pr-2 font-mono font-medium text-accent">{b.artifact}</td>
-                <td className="px-2 py-1 text-muted">{b.target}</td>
+              <tr key={`${b.sha256}-${i}`} className="border-b border-border/60">
+                <td className="py-1 pr-2 font-mono font-medium text-accent">{b.path}</td>
+                <td className="px-2 py-1 font-mono text-muted">{shortHash(b.sha256)}</td>
                 <td className="px-2 py-1 text-muted">{humanSize(b.size_bytes)}</td>
-                <td className="px-2 py-1 font-mono text-muted">{shortHash(b.hash)}</td>
+                <td className="px-2 py-1 text-muted">{b.built_at ?? "—"}</td>
                 <td className="px-2 py-1">
-                  <DriftBadge drift={b.drift} />
+                  {verifyResult[b.path] ? (
+                    <span
+                      className={verifyResult[b.path].reproducible ? "text-st-ok" : "text-st-error"}
+                    >
+                      {verifyResult[b.path].reproducible ? "✓ reproducible" : "✗ drift"}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => onVerify(b.path)}
+                      disabled={verifying === b.path}
+                      className="rounded border border-border px-1.5 py-0.5 text-[10px] disabled:opacity-50"
+                    >
+                      {verifying === b.path ? "…" : "Verify"}
+                    </button>
+                  )}
                 </td>
-                <td className="px-2 py-1 text-muted">{b.built_at}</td>
               </tr>
             ))}
           </tbody>
@@ -130,48 +156,22 @@ export function ShipPage() {
 }
 
 function TargetCard({ target }: { target: Target }) {
-  const gated = target.status !== "ready";
+  const reserved = target.status !== "available";
   return (
     <div
       className={`rounded-md border px-3 py-2 text-xs ${
-        gated ? "border-border opacity-60" : "border-st-ok/40 bg-st-ok-soft/40"
+        reserved ? "border-border opacity-60" : "border-st-ok/40 bg-st-ok-soft/40"
       }`}
     >
-      <div className="font-semibold text-accent">{target.name}</div>
+      <div className="font-mono font-semibold text-accent">{target.triple}</div>
       <div className="mt-0.5 text-[10px] text-muted">
-        {target.substrate}
-        {" · "}
-        {gated ? (
-          <span className="rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">
-            {target.gate}
-          </span>
-        ) : (
-          <span className="rounded bg-st-ok-soft px-1 text-[9px] font-medium text-st-ok">
-            ready
-          </span>
-        )}
+        {target.tier} · {target.status}
       </div>
-    </div>
-  );
-}
-
-function DriftBadge({ drift }: { drift: string }) {
-  const tone = drift === "clean" ? "bg-st-ok-soft text-st-ok" : "bg-amber-100 text-amber-800";
-  return <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${tone}`}>{drift}</span>;
-}
-
-function StepTimeline({ steps }: { steps: BuildStep[] }) {
-  const dot = (status: string) =>
-    status === "ok" ? "bg-st-ok" : status === "running" ? "bg-st-running" : "bg-st-error";
-  return (
-    <div className="mt-1 space-y-0.5">
-      {steps.map((s, i) => (
-        <div key={`${i}-${s.name}`} className="flex items-center gap-2 text-xs">
-          <span className={`h-1.5 w-1.5 rounded-full ${dot(s.status)}`} />
-          <span>{s.name}</span>
-          <span className="ml-auto text-[10px] text-muted">{s.duration_ms}ms</span>
+      {target.required_shapes.length > 0 && (
+        <div className="mt-0.5 font-mono text-[9px] text-muted">
+          {target.required_shapes.join(" ")}
         </div>
-      ))}
+      )}
     </div>
   );
 }

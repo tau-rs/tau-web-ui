@@ -41,8 +41,9 @@ describe("HealthPage", () => {
     render(<HealthPage />);
     await waitFor(() => expect(screen.getByText("tau.config.endpoint")).toBeInTheDocument());
     expect(screen.getByText("inference.endpoint not set")).toBeInTheDocument();
-    expect(screen.getByText("set inference.endpoint in tau.toml", { exact: false }))
-      .toBeInTheDocument();
+    expect(
+      screen.getByText("set inference.endpoint in tau.toml", { exact: false }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /config/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /lockfile/i })).toBeInTheDocument();
     expect(screen.getByText(/waits on tau β\.6/i)).toBeInTheDocument();

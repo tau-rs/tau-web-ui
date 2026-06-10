@@ -45,8 +45,11 @@ async fn ship_targets_bundles_and_build() {
         .unwrap();
     let tarr = targets.as_array().unwrap();
     assert_eq!(tarr.len(), 4);
-    let host = tarr.iter().find(|t| t["name"] == "host").unwrap();
-    assert_eq!(host["status"], "ready");
+    let darwin = tarr
+        .iter()
+        .find(|t| t["triple"] == "darwin-native-strict")
+        .unwrap();
+    assert_eq!(darwin["status"], "available");
 
     // bundles (seeded, non-empty)
     let bundles: serde_json::Value = http
@@ -59,22 +62,21 @@ async fn ship_targets_bundles_and_build() {
         .unwrap();
     assert!(!bundles.as_array().unwrap().is_empty());
 
-    // build host → 200 with steps
+    // build an available target → 200 with a bundle path
     let resp = http
         .post(format!("{base}/api/projects/{}/build", meta.id))
-        .json(&serde_json::json!({ "target": "host" }))
+        .json(&serde_json::json!({ "target": "darwin-native-strict" }))
         .send()
         .await
         .unwrap();
     assert_eq!(resp.status(), reqwest::StatusCode::OK);
     let built: serde_json::Value = resp.json().await.unwrap();
-    assert_eq!(built["target"], "host");
-    assert!(!built["steps"].as_array().unwrap().is_empty());
+    assert_eq!(built["path"], "demo.tau");
 
-    // build gated target → 400
+    // build a reserved target → 400
     let bad = http
         .post(format!("{base}/api/projects/{}/build", meta.id))
-        .json(&serde_json::json!({ "target": "wasm" }))
+        .json(&serde_json::json!({ "target": "windows-native-strict" }))
         .send()
         .await
         .unwrap();

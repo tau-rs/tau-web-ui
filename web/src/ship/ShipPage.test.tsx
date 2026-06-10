@@ -3,32 +3,38 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ShipPage } from "./ShipPage";
 
+const shapes = ["fs.r", "fs.w", "exec", "net.http"];
 const targets = [
-  { name: "host", substrate: "native", status: "ready", gate: null },
-  { name: "wasm", substrate: "wasm32", status: "gated", gate: "γ" },
+  {
+    triple: "darwin-native-strict",
+    platform: "darwin",
+    adapter_family: "native",
+    tier: "strict",
+    status: "available",
+    required_shapes: shapes,
+  },
+  {
+    triple: "windows-native-strict",
+    platform: "windows",
+    adapter_family: "native",
+    tier: "strict",
+    status: "reserved",
+    required_shapes: shapes,
+  },
 ];
 const bundles = [
   {
-    artifact: "demo.tau",
-    target: "host",
+    path: "demo.tau",
+    sha256: "seedhash00aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     size_bytes: 2_310_004,
-    hash: "sha256:seedhash00",
-    drift: "drifted",
     built_at: "1d ago",
-    steps: [{ name: "compile", status: "ok", duration_ms: 2100 }],
   },
 ];
 const newBundle = {
-  artifact: "demo.tau",
-  target: "host",
+  path: "demo.tau",
+  sha256: "freshbui9bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
   size_bytes: 2_460_512,
-  hash: "sha256:freshbuild9",
-  drift: "clean",
   built_at: "just now",
-  steps: [
-    { name: "resolve deps", status: "ok", duration_ms: 118 },
-    { name: "compile", status: "ok", duration_ms: 2087 },
-  ],
 };
 
 beforeEach(() => {
@@ -44,21 +50,19 @@ beforeEach(() => {
 });
 
 describe("ShipPage", () => {
-  it("renders targets + bundles; gated target is not buildable", async () => {
+  it("renders targets + bundles; reserved target is not buildable", async () => {
     render(<ShipPage />);
-    // target cards rendered — assert on the substrate (unique; "host"/"wasm"
-    // also appear as a <select> option and a bundle-row target cell).
-    await waitFor(() => expect(screen.getByText(/native/)).toBeInTheDocument());
-    expect(screen.getByText(/wasm32/)).toBeInTheDocument();
-    // the seeded bundle shows its short hash + drift
+    // target cards rendered — the reserved card shows its status text
+    await waitFor(() => expect(screen.getByText(/reserved/)).toBeInTheDocument());
+    // the seeded bundle shows its short hash (first 8 of the sha256 hex)
     expect(screen.getByText("seedhash")).toBeInTheDocument();
-    expect(screen.getByText("drifted")).toBeInTheDocument();
-    // only ready targets are build options (role-scoped: avoids the card/cell matches)
-    expect(screen.getByRole("option", { name: "host" })).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "wasm" })).not.toBeInTheDocument();
+    expect(screen.getByText("demo.tau")).toBeInTheDocument();
+    // only available targets are build options
+    expect(screen.getByRole("option", { name: "darwin-native-strict" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "windows-native-strict" })).not.toBeInTheDocument();
   });
 
-  it("builds and prepends the new bundle with its step timeline", async () => {
+  it("builds and prepends the new bundle", async () => {
     const user = userEvent.setup();
     render(<ShipPage />);
     await waitFor(() =>
@@ -67,7 +71,7 @@ describe("ShipPage", () => {
     await user.click(screen.getByRole("button", { name: /^build$/i }));
     // the freshly built bundle (unique short hash) appears
     await waitFor(() => expect(screen.getByText("freshbui")).toBeInTheDocument());
-    // its step timeline shows "resolve deps"
-    expect(screen.getByText("resolve deps")).toBeInTheDocument();
+    // the last-build line surfaces the artifact path
+    expect(screen.getByText(/built demo\.tau/)).toBeInTheDocument();
   });
 });

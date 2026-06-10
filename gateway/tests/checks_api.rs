@@ -43,7 +43,7 @@ async fn checks_report_over_http() {
     let report: serde_json::Value = resp.json().await.unwrap();
 
     assert_eq!(report["categories"].as_array().unwrap().len(), 6);
-    assert_eq!(report["findings"].as_array().unwrap().len(), 3);
+    assert_eq!(report["findings"].as_array().unwrap().len(), 2);
     assert_eq!(report["sandbox"]["tier"], "seatbelt");
 
     let config = report["categories"]
@@ -60,5 +60,5 @@ async fn checks_report_over_http() {
         .iter()
         .find(|f| f["severity"] == "error")
         .unwrap();
-    assert_eq!(err["rule"], "TAU-CONFIG-ENDPOINT");
+    assert_eq!(err["rule"], "tau.config.endpoint");
 }
