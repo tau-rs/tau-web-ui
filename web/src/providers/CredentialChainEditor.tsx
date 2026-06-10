@@ -78,6 +78,7 @@ export function CredentialChainEditor({
     setSaving(true);
     const sources: SourceConfig[] = rows.map((r) => ({
       kind: r.kind,
+      // ref-less kinds (local: stores a value; workload_identity: ambient) send no ref
       ref: r.kind === "local" || r.kind === "workload_identity" ? null : r.ref,
     }));
     try {

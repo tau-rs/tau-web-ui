@@ -101,6 +101,6 @@ describe("CredentialChainEditor", () => {
     const note = screen.getByText(/resolved by tau at runtime/);
     expect(note).toBeInTheDocument();
     expect(note.textContent).toContain("↗");
-    expect(note.className).toContain("text-accent");
+    expect(note).toHaveClass("text-accent");
   });
 });
