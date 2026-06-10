@@ -74,6 +74,8 @@ export function PackagesPage() {
               <th className="px-3 py-2 font-medium">package</th>
               <th className="px-3 py-2 font-medium">version</th>
               <th className="px-3 py-2 font-medium">source</th>
+              <th className="px-3 py-2 font-medium">scope</th>
+              <th className="px-3 py-2 font-medium">versions</th>
               <th className="px-3 py-2 font-medium">status</th>
               <th className="px-3 py-2 font-medium"></th>
             </tr>
@@ -84,9 +86,11 @@ export function PackagesPage() {
                 <td className="px-3 py-2 font-medium">{p.name}</td>
                 <td className="px-3 py-2 font-mono text-muted">{p.version}</td>
                 <td className="px-3 py-2 font-mono text-muted">{p.source}</td>
+                <td className="px-3 py-2 text-muted">{p.scope}</td>
+                <td className="px-3 py-2 font-mono text-muted">{p.version_count}</td>
                 <td className="px-3 py-2">
                   <span className="rounded bg-st-ok-soft px-1.5 py-0.5 text-[10px] font-medium text-st-ok">
-                    {status[p.name] ?? p.status}
+                    {status[p.name] ?? "—"}
                   </span>
                 </td>
                 <td className="px-3 py-2">
