@@ -3,6 +3,8 @@
 //! seam, with an in-memory bundle list (like packages' `MockOps`). tau has no
 //! real build engine yet — `CliShip` is the empty seam.
 
+use std::path::PathBuf;
+use std::process::Command;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -126,18 +128,101 @@ impl ShipSource for MockShip {
     }
 }
 
-/// CLI seam — wired in a later task.
-pub struct CliShip;
+/// Reject a target triple that could be smuggled to `tau build` as a flag.
+fn is_safe_target(t: &str) -> bool {
+    !t.is_empty() && !t.starts_with('-') && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+fn parse_targets_jsonl(stdout: &str) -> Vec<Target> {
+    stdout
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+        .filter(|v| v.get("event").and_then(|e| e.as_str()) == Some("target"))
+        .map(|v| Target {
+            triple: v["triple"].as_str().unwrap_or("").to_string(),
+            platform: v["platform"].as_str().unwrap_or("").to_string(),
+            adapter_family: v["adapter_family"].as_str().unwrap_or("").to_string(),
+            tier: v["tier"].as_str().unwrap_or("").to_string(),
+            status: v["status"].as_str().unwrap_or("unknown").to_string(),
+            required_shapes: v["required_shapes"]
+                .as_array()
+                .map(|a| a.iter().filter_map(|s| s.as_str().map(String::from)).collect())
+                .unwrap_or_default(),
+        })
+        .collect()
+}
+
+/// Map a `tau build --json` result + exit code to a Bundle or a typed error.
+fn parse_build_result(
+    status: std::process::ExitStatus,
+    stdout: &str,
+    stderr: &str,
+) -> Result<Bundle, BuildError> {
+    if status.success() {
+        let v: serde_json::Value = serde_json::from_str(stdout.trim().lines().last().unwrap_or(""))
+            .map_err(|e| BuildError::Internal(format!("unparseable build output: {e}")))?;
+        return Ok(Bundle {
+            path: v["path"].as_str().unwrap_or("").to_string(),
+            sha256: v["sha256"].as_str().unwrap_or("").to_string(),
+            size_bytes: v["size_bytes"].as_u64().unwrap_or(0),
+            built_at: None,
+        });
+    }
+    match status.code() {
+        Some(3) => Err(BuildError::NeedsProvisioning(stderr.trim().to_string())),
+        Some(2) => Err(BuildError::Invalid(stderr.trim().to_string())),
+        _ => Err(BuildError::Internal(stderr.trim().to_string())),
+    }
+}
+
+/// Shells real tau: `tau target list` / `tau build` / (verify added later).
+pub struct CliShip {
+    bin: PathBuf,
+    project: PathBuf,
+}
+
+impl CliShip {
+    pub fn new(bin: PathBuf, project: PathBuf) -> Self {
+        Self { bin, project }
+    }
+}
 
 impl ShipSource for CliShip {
     fn list_targets(&self) -> Vec<Target> {
-        vec![]
+        Command::new(&self.bin)
+            .arg("target")
+            .arg("list")
+            .arg("--all")
+            .arg("--json")
+            .output()
+            .ok()
+            .map(|o| parse_targets_jsonl(&String::from_utf8_lossy(&o.stdout)))
+            .unwrap_or_default()
     }
+
     fn list_bundles(&self) -> Vec<Bundle> {
-        vec![]
+        // Filesystem scan added in the next task.
+        Vec::new()
     }
+
     fn build(&self, target: &str) -> Result<Bundle, BuildError> {
-        Err(BuildError::Invalid(format!("unknown target '{target}'")))
+        if !is_safe_target(target) {
+            return Err(BuildError::Invalid(format!("invalid target '{target}'")));
+        }
+        let out = Command::new(&self.bin)
+            .arg("build")
+            .arg("--target")
+            .arg(target)
+            .arg("--json")
+            .current_dir(&self.project)
+            .output()
+            .map_err(|e| BuildError::Internal(format!("could not run tau build: {e}")))?;
+        parse_build_result(
+            out.status,
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        )
     }
 }
 
@@ -172,9 +257,32 @@ mod tests {
     }
 
     #[test]
-    fn cli_ship_is_empty() {
-        assert!(CliShip.list_targets().is_empty());
-        assert!(CliShip.list_bundles().is_empty());
-        assert!(CliShip.build("darwin-native-strict").is_err());
+    fn cli_ship_is_empty_without_real_tau() {
+        // A bogus bin path makes list/build fail gracefully (empty / error), no panic.
+        let s = CliShip::new("/nonexistent/tau".into(), std::env::temp_dir());
+        assert!(s.list_targets().is_empty());
+        assert!(s.list_bundles().is_empty());
+        assert!(s.build("darwin-native-strict").is_err());
+    }
+
+    #[test]
+    fn parse_targets_jsonl_maps_triples() {
+        let jsonl = include_str!("../../tests/fixtures/tau-json/targets.jsonl");
+        let ts = parse_targets_jsonl(jsonl);
+        assert_eq!(ts.len(), 4);
+        let darwin = ts.iter().find(|t| t.triple == "darwin-native-strict").unwrap();
+        assert_eq!(darwin.platform, "darwin");
+        assert_eq!(darwin.adapter_family, "native");
+        assert_eq!(darwin.status, "available");
+        assert!(ts.iter().any(|t| t.triple == "windows-native-strict" && t.status == "reserved"));
+        assert!(darwin.required_shapes.contains(&"exec".to_string()));
+    }
+
+    #[test]
+    fn safe_target_rejects_flag_smuggling() {
+        assert!(is_safe_target("darwin-native-strict"));
+        assert!(!is_safe_target("--output=/etc/x"));
+        assert!(!is_safe_target("-rf"));
+        assert!(!is_safe_target(""));
     }
 }

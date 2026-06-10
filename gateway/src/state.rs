@@ -113,7 +113,7 @@ impl AppState {
                 .to_string();
             Box::new(ship::MockShip::new(project_name))
         } else {
-            Box::new(ship::CliShip)
+            Box::new(ship::CliShip::new(bin.clone(), project.clone()))
         };
         let check_source: Box<dyn CheckSource> = if is_mock {
             Box::new(checks::MockChecks)

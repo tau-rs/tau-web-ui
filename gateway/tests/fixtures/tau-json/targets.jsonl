@@ -1,0 +1,4 @@
+{"adapter_family":"native","event":"target","platform":"linux","reason":null,"required_shapes":["fs.r","fs.w","exec","net.http"],"status":"available","tier":"strict","triple":"linux-native-strict"}
+{"adapter_family":"native","event":"target","platform":"darwin","reason":null,"required_shapes":["fs.r","fs.w","exec","net.http"],"status":"available","tier":"strict","triple":"darwin-native-strict"}
+{"adapter_family":"passthrough","event":"target","platform":"any","reason":null,"required_shapes":["fs.r","fs.w","exec","net.http","agent.spawn"],"status":"available","tier":"none","triple":"passthrough"}
+{"adapter_family":"native","event":"target","platform":"windows","reason":"windows AppContainer scaffold; probe Unavailable in v1","required_shapes":["fs.r","fs.w","exec","net.http"],"status":"reserved","tier":"strict","triple":"windows-native-strict"}
