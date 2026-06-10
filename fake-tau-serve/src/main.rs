@@ -1,5 +1,7 @@
 //! Faithful mock of the `tau serve` wire protocol (NDJSON JSON-RPC over stdio).
 //! Implements the contract snapshotted in tau-web-ui/docs/tau-contract-v1.md.
+//! Invoked like the real binary: `fake-tau-serve serve --project <path> --ready-on-stderr`
+//! (a leading `serve` subcommand is accepted and ignored).
 //! Flags: --project <path> --ready-on-stderr [--max-concurrent N] [--idle-timeout S]
 
 mod scripts;
@@ -11,6 +13,9 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    // The gateway invokes us as `<bin> serve --project …`; the `serve` subcommand
+    // (present for parity with the real `tau` binary) is accepted and ignored here.
+    debug_assert!(args.iter().any(|a| a == "serve") || args.len() <= 1);
     let project = flag(&args, "--project").unwrap_or_else(|| ".".into());
     let ready_on_stderr = args.iter().any(|a| a == "--ready-on-stderr");
 

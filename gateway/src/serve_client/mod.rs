@@ -2,7 +2,7 @@
 pub mod jsonrpc;
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
@@ -61,18 +61,35 @@ fn req_id(id: &RequestId) -> i64 {
     }
 }
 
+/// Build the `tau serve` child command: `<bin> serve --project <path> --ready-on-stderr [--no-sandbox]`,
+/// with stdio piped and the given env vars applied on top of the inherited environment.
+/// The `serve` subcommand is what the real `tau` binary requires; `fake-tau-serve`
+/// tolerates (ignores) it.
+fn build_serve_command(
+    bin: &Path,
+    project: &Path,
+    no_sandbox: bool,
+    envs: &[(String, String)],
+) -> Command {
+    let mut cmd = Command::new(bin);
+    cmd.arg("serve").arg("--project").arg(project).arg("--ready-on-stderr");
+    if no_sandbox {
+        cmd.arg("--no-sandbox");
+    }
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    cmd.kill_on_drop(true);
+    cmd
+}
+
 impl ServeClient {
     /// Spawn `tau serve`, wait for the ready line on stderr, handshake.
     pub async fn spawn(bin: PathBuf, project: PathBuf, no_sandbox: bool) -> Result<ServeClient> {
-        let mut cmd = Command::new(&bin);
-        cmd.arg("--project").arg(&project).arg("--ready-on-stderr");
-        if no_sandbox {
-            cmd.arg("--no-sandbox");
-        }
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        cmd.kill_on_drop(true);
+        let mut cmd = build_serve_command(&bin, &project, no_sandbox, &[]);
         let mut child = cmd.spawn().with_context(|| format!("spawn {bin:?}"))?;
 
         // Wait for "tau-serve ready" on stderr.
@@ -283,5 +300,30 @@ impl ServeClient {
             .ok()
             .flatten()
             .is_none()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_serve_command_inserts_serve_subcommand_and_flags() {
+        let cmd = build_serve_command(
+            &PathBuf::from("/opt/tau"),
+            &PathBuf::from("/proj"),
+            true,
+            &[],
+        );
+        let std = cmd.as_std();
+        let args: Vec<String> = std
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args[0], "serve", "serve subcommand must come first");
+        assert!(args.iter().any(|a| a == "--project"));
+        assert!(args.iter().any(|a| a == "/proj"));
+        assert!(args.iter().any(|a| a == "--ready-on-stderr"));
+        assert!(args.iter().any(|a| a == "--no-sandbox"));
     }
 }
