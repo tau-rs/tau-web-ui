@@ -71,14 +71,39 @@ async fn credentials_crud_over_http() {
     assert_eq!(st2["resolved"], false);
     assert_eq!(st2["sources"][0]["gated"], false);
 
-    // gated kind → 422
+    // CR-2: a vault source is now accepted (200), ungated, with a detail hint.
+    let v = http
+        .put(format!("{base}/api/credentials/vaulted"))
+        .json(&serde_json::json!({ "sources": [{ "kind": "vault", "ref": "secret/data/x" }] }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(v.status(), reqwest::StatusCode::OK);
+    let vst: serde_json::Value = v.json().await.unwrap();
+    assert_eq!(vst["sources"][0]["gated"], false);
+    // VAULT_ADDR is typically unset in CI → not configured + a detail hint. Don't hard-assert
+    // the ambient-env-dependent `configured`; just check that an unconfigured source has a detail.
+    if vst["sources"][0]["configured"] == false {
+        assert!(vst["sources"][0]["detail"].is_string());
+    }
+
+    // a gated kind (token_broker) → 422
     let gated = http
         .put(format!("{base}/api/credentials/x"))
-        .json(&serde_json::json!({ "sources": [{ "kind": "vault", "ref": "secret/x" }] }))
+        .json(&serde_json::json!({ "sources": [{ "kind": "token_broker", "ref": "https://b" }] }))
         .send()
         .await
         .unwrap();
     assert_eq!(gated.status(), reqwest::StatusCode::UNPROCESSABLE_ENTITY);
+
+    // a manager with an empty ref → 422
+    let empty = http
+        .put(format!("{base}/api/credentials/x"))
+        .json(&serde_json::json!({ "sources": [{ "kind": "vault" }] }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(empty.status(), reqwest::StatusCode::UNPROCESSABLE_ENTITY);
 
     // DELETE clears
     let del = http
