@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HealthPage } from "./HealthPage";
 import { ProjectProvider } from "../app/project-context";
+import { useStore } from "../store/store";
 
 const report = {
   categories: [
@@ -35,6 +36,7 @@ const report = {
 
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => report }));
+  useStore.setState({ health: null, healthError: null, healthCheckedAt: null });
 });
 
 describe("HealthPage", () => {
@@ -67,5 +69,37 @@ describe("HealthPage", () => {
     await user.click(screen.getByRole("button", { name: /lockfile/i }));
     expect(screen.getByText("tau.lockfile.missing")).toBeInTheDocument();
     expect(screen.queryByText("tau.config.endpoint")).not.toBeInTheDocument();
+  });
+
+  it("surfaces a connectivity reason and last-contact, not just a flipped dot", async () => {
+    useStore.setState({
+      health: { gateway_ok: false, engine_ok: false, tau_bin: "x", tau_version: "1" },
+      healthError: "503: Service Unavailable",
+      healthCheckedAt: Date.now() - 120_000,
+    });
+    render(
+      <ProjectProvider pid="demo">
+        <HealthPage />
+      </ProjectProvider>,
+    );
+    expect(await screen.findByText(/unreachable/i)).toBeInTheDocument();
+    expect(screen.getByText(/503: Service Unavailable/)).toBeInTheDocument();
+    expect(screen.getByText(/last contact/i)).toHaveTextContent(/ago/);
+  });
+
+  it("distinguishes reachable-but-engine-down from unreachable", async () => {
+    useStore.setState({
+      health: { gateway_ok: true, engine_ok: false, tau_bin: "x", tau_version: "1" },
+      healthError: null,
+      healthCheckedAt: Date.now(),
+    });
+    render(
+      <ProjectProvider pid="demo">
+        <HealthPage />
+      </ProjectProvider>,
+    );
+    expect(await screen.findByText(/gateway ok/i)).toBeInTheDocument();
+    expect(screen.getByText(/engine down/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unreachable/i)).not.toBeInTheDocument();
   });
 });
