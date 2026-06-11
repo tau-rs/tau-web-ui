@@ -4,7 +4,7 @@
 
 **Goal:** Replace the `json<T>` fetch helper copy-pasted across 12 API modules with one shared `request<T>`/`requestVoid` client that owns base URL, default headers, and error normalization.
 
-**Architecture:** Add `request<T>(path, init?)` and `requestVoid(path, init?)` to `web/src/api/client.ts`, both routing through one private `check(res)` error normalizer and a `withDefaults(init)` header merge. Migrate every call site; delete every duplicated `json<T>`. Pure consolidation — no public signature changes, no new behavior.
+**Architecture:** Add `request<T>(path, init?)` and `requestVoid(path, init?)` to `web/src/api/client.ts`, both routing through one private `check(res)` error normalizer and a single `send(path, init?)` fetch entrypoint (the future home for base URL / default headers). Migrate every call site; delete every duplicated `json<T>`. Pure consolidation — no public signature changes, no new behavior.
 
 **Tech Stack:** TypeScript, React, Vitest, ESLint, Prettier. Package manager `pnpm`; commands run from `web/`. Node 20 is unavailable locally (vitest runs in CI); `tsc`/`eslint`/`prettier` run fine locally.
 
@@ -93,10 +93,14 @@ with:
 ```ts
 const BASE = ""; // single future home for an absolute base URL
 
-/** Merge caller init over client defaults. Default headers live here so a
- *  future Origin header (S1) or timeout/abort is added in ONE place. */
-function withDefaults(init?: RequestInit): RequestInit {
-  return { ...init, headers: { ...init?.headers } };
+/** The one place every request flows through: base URL lives here, and this is
+ *  the single home for adding default headers (Origin — audit S1), a timeout,
+ *  or an abort signal later, applied to every call without touching call sites.
+ *  Argument-less requests stay argument-less, so behavior is identical to a
+ *  direct `fetch`. */
+function send(path: string, init?: RequestInit): Promise<Response> {
+  const url = `${BASE}${path}`;
+  return init ? fetch(url, init) : fetch(url);
 }
 
 async function check(res: Response): Promise<Response> {
@@ -104,18 +108,26 @@ async function check(res: Response): Promise<Response> {
   return res;
 }
 
-/** The single API request entrypoint: base URL + default headers + error
- *  normalization, then JSON-decode the body. */
+/** The single API request entrypoint: base URL + error normalization, then
+ *  JSON-decode the body. */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+  const res = await check(await send(path, init));
   return res.json() as Promise<T>;
 }
 
 /** Like `request`, for endpoints that return no JSON body (e.g. DELETE). */
 export async function requestVoid(path: string, init?: RequestInit): Promise<void> {
-  await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+  await check(await send(path, init));
 }
 ```
+
+> **Implementation note:** an earlier draft used a `withDefaults(init)` that
+> merged into `{ ...init, headers: { ...init?.headers } }`. That returned a
+> `{ headers: {} }` object for argument-less GETs, adding a spurious second
+> `fetch` argument that broke `project-context.test.tsx`'s byte-identical
+> assertion. The shipped seam is `send()`, which omits the second argument when
+> there is no `init` — genuinely byte-identical. Default headers will be added
+> inside `send` later.
 
 Then migrate `client.ts`'s own functions off the now-deleted `json<T>` (the `.then(json<X>)` calls below). Rewrite them to use `request`:
 

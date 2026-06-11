@@ -102,4 +102,22 @@ describe("shared request helper (error normalization in one place)", () => {
     vi.stubGlobal("fetch", f);
     await expect(requestVoid("/api/ok", { method: "DELETE" })).resolves.toBeUndefined();
   });
+
+  it("forwards an init-less request to fetch with no second argument (byte-identical)", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    await request("/api/plain");
+    // A bare GET must call fetch(url) — not fetch(url, undefined) or
+    // fetch(url, {}). This keeps the consolidation byte-identical to the prior
+    // direct-fetch call sites and is the invariant `send` exists to preserve.
+    expect(f.mock.calls[0]).toEqual(["/api/plain"]);
+  });
+
+  it("forwards a caller's init through unchanged", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    const init = { method: "POST", headers: { "content-type": "application/json" }, body: "{}" };
+    await request("/api/thing", init);
+    expect(f.mock.calls[0]).toEqual(["/api/thing", init]);
+  });
 });

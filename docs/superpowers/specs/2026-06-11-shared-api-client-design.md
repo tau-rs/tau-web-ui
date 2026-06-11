@@ -86,8 +86,9 @@ on every GET, which is observably different and is avoided here.
   `listRuns`, `getWorkflows`, `launchWorkflow`, `getTrace`, `cancelRun`) also
   route through `request`. `openRunSocket` (WebSocket) is untouched.
 - Call sites keep passing their own `content-type` header — not stripped (that
-  would be churn beyond the seam). `withDefaults` merges, so request behavior is
-  byte-identical to today.
+  would be churn beyond the seam). `send` forwards each call's `init` unchanged
+  (and omits it entirely when absent), so request behavior is byte-identical to
+  today.
 
 ## Out of scope (explicitly NOT in this PR)
 
