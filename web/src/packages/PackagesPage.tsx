@@ -10,6 +10,24 @@ import {
 } from "../api/config";
 import { useProjectId } from "../app/project-context";
 
+// Verify reports "ok" for a reproducible package. Anything else — drift, stale,
+// unverified, failed, or an unrecognized value — is not a success and must not
+// borrow the success tone (the status cell used to be unconditionally green).
+const PKG_STATUS_CLASS: Record<string, string> = {
+  ok: "bg-st-ok-soft text-st-ok",
+};
+
+function StatusBadge({ status }: { status: string | undefined }) {
+  // No status yet → neutral placeholder, never green.
+  const cls =
+    status == null
+      ? "bg-st-cancelled-soft text-st-cancelled"
+      : (PKG_STATUS_CLASS[status] ?? "bg-st-error-soft text-st-error");
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>{status ?? "—"}</span>
+  );
+}
+
 export function PackagesPage() {
   const pid = useProjectId();
   const [pkgs, setPkgs] = useState<Package[]>([]);
@@ -94,9 +112,7 @@ export function PackagesPage() {
                 <td className="px-3 py-2 text-muted">{p.scope}</td>
                 <td className="px-3 py-2 font-mono text-muted">{p.version_count}</td>
                 <td className="px-3 py-2">
-                  <span className="rounded bg-st-ok-soft px-1.5 py-0.5 text-[10px] font-medium text-st-ok">
-                    {status[p.name] ?? "—"}
-                  </span>
+                  <StatusBadge status={status[p.name]} />
                 </td>
                 <td className="px-3 py-2">
                   <span className="flex gap-2">

@@ -29,6 +29,15 @@ const report = {
       remediation: "run `tau install`",
       location: null,
     },
+    {
+      category: "config",
+      severity: "critical",
+      rule: "tau.critical.unknown",
+      summary: "unknown severity from backend",
+      detail: null,
+      remediation: null,
+      location: null,
+    },
   ],
   sandbox: { tier: "seatbelt", status: "ready", no_sandbox: false },
 };
@@ -67,5 +76,19 @@ describe("HealthPage", () => {
     await user.click(screen.getByRole("button", { name: /lockfile/i }));
     expect(screen.getByText("tau.lockfile.missing")).toBeInTheDocument();
     expect(screen.queryByText("tau.config.endpoint")).not.toBeInTheDocument();
+  });
+
+  it("renders an unknown severity in an escalated tone, never the benign warning tone", async () => {
+    render(
+      <ProjectProvider pid="demo">
+        <HealthPage />
+      </ProjectProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("tau.critical.unknown")).toBeInTheDocument());
+    const badge = screen.getByText("critical");
+    // An unrecognized severity must escalate (error tone), not silently render as
+    // the benign "warning" tone — otherwise a typo or new value downgrades risk.
+    expect(badge.className).toContain("text-st-error");
+    expect(badge.className).not.toContain("text-st-running");
   });
 });

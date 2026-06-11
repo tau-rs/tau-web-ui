@@ -10,12 +10,22 @@ const SEV_CLASS: Record<string, string> = {
   "needs-setup": "bg-amber-100 text-amber-800",
   warning: "bg-st-running-soft text-st-running",
   pass: "bg-st-ok-soft text-st-ok",
+  note: "bg-st-cancelled-soft text-st-cancelled",
 };
+// A severity we don't recognize must never borrow a benign tone on a triage
+// surface — a typo or a newly-added backend value (e.g. "critical") would
+// otherwise silently downgrade to the benign "warning" style. Escalate the
+// unknown to the error tone and mark it so it can't masquerade as known.
+const SEV_UNKNOWN = "bg-st-error-soft text-st-error";
 
 function SeverityBadge({ severity, label }: { severity: string; label?: string }) {
-  const cls = SEV_CLASS[severity] ?? SEV_CLASS.warning;
+  const known = Object.prototype.hasOwnProperty.call(SEV_CLASS, severity);
+  const cls = known ? SEV_CLASS[severity] : SEV_UNKNOWN;
   return (
-    <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${cls}`}>
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${cls}`}
+      title={known ? undefined : `unrecognized severity: ${severity}`}
+    >
       {label ?? severity}
     </span>
   );
