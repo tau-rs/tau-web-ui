@@ -1,5 +1,4 @@
 import type { AgentMetric } from "./metrics";
-import { ContextBar } from "./ContextBar";
 
 const pct = (x: number | null) => (x == null ? "—" : `${Math.round(x * 100)}%`);
 const dur = (ms: number | null) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}s`);
@@ -16,7 +15,6 @@ export function AgentTable({ agents }: { agents: AgentMetric[] }) {
           <th className="px-2 py-1 font-medium">success</th>
           <th className="px-2 py-1 font-medium">tokens</th>
           <th className="px-2 py-1 font-medium">avg dur</th>
-          <th className="px-2 py-1 font-medium">context</th>
         </tr>
       </thead>
       <tbody>
@@ -27,9 +25,6 @@ export function AgentTable({ agents }: { agents: AgentMetric[] }) {
             <td className="px-2 py-1">{pct(a.successRate)}</td>
             <td className="px-2 py-1">{toks(a.tokens)}</td>
             <td className="px-2 py-1">{dur(a.avgDurationMs)}</td>
-            <td className="px-2 py-1">
-              <ContextBar />
-            </td>
           </tr>
         ))}
       </tbody>

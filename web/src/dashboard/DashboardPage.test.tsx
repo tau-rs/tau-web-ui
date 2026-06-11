@@ -33,7 +33,7 @@ beforeEach(() =>
 );
 
 describe("DashboardPage", () => {
-  it("renders headline stats, an agent row, and the context WIP marker", () => {
+  it("renders headline stats and an agent row, without the dead context WIP marker", () => {
     render(
       <ProjectProvider pid="demo">
         <DashboardPage />
@@ -41,7 +41,7 @@ describe("DashboardPage", () => {
     );
     expect(screen.getByText("Runs")).toBeInTheDocument();
     expect(screen.getByText("researcher")).toBeInTheDocument();
-    expect(screen.getAllByText(/wip/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/wip/i)).not.toBeInTheDocument();
   });
 
   it("shows a loading skeleton before the first runs load (distinct from empty)", () => {
