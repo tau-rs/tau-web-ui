@@ -28,10 +28,14 @@ function scoped(pid: string, path: string): string {
 
 const BASE = ""; // single future home for an absolute base URL
 
-/** Merge caller init over client defaults. Default headers live here so a
- *  future Origin header (S1) or timeout/abort is added in ONE place. */
-function withDefaults(init?: RequestInit): RequestInit {
-  return { ...init, headers: { ...init?.headers } };
+/** The one place every request flows through: base URL lives here, and this is
+ *  the single home for adding default headers (Origin — audit S1), a timeout,
+ *  or an abort signal later, applied to every call without touching call sites.
+ *  Argument-less requests stay argument-less, so behavior is identical to a
+ *  direct `fetch`. */
+function send(path: string, init?: RequestInit): Promise<Response> {
+  const url = `${BASE}${path}`;
+  return init ? fetch(url, init) : fetch(url);
 }
 
 async function check(res: Response): Promise<Response> {
@@ -39,16 +43,16 @@ async function check(res: Response): Promise<Response> {
   return res;
 }
 
-/** The single API request entrypoint: base URL + default headers + error
- *  normalization, then JSON-decode the body. */
+/** The single API request entrypoint: base URL + error normalization, then
+ *  JSON-decode the body. */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+  const res = await check(await send(path, init));
   return res.json() as Promise<T>;
 }
 
 /** Like `request`, for endpoints that return no JSON body (e.g. DELETE). */
 export async function requestVoid(path: string, init?: RequestInit): Promise<void> {
-  await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+  await check(await send(path, init));
 }
 
 export const getHealth = (pid: string) => request<Health>(scoped(pid, "/health"));

@@ -38,10 +38,14 @@ Three additions to `web/src/api/client.ts` (the natural home — it already owns
 ```ts
 const BASE = ""; // single future home for an absolute base URL
 
-/** Merge caller init over client defaults. Default headers live here so a
- *  future Origin header (S1) or timeout/abort is added in ONE place. */
-function withDefaults(init?: RequestInit): RequestInit {
-  return { ...init, headers: { ...init?.headers } };
+/** The one place every request flows through: base URL lives here, and this is
+ *  the single home for adding default headers (Origin — audit S1), a timeout,
+ *  or an abort signal later, applied to every call without touching call sites.
+ *  Argument-less requests stay argument-less, so behavior is identical to a
+ *  direct `fetch`. */
+function send(path: string, init?: RequestInit): Promise<Response> {
+  const url = `${BASE}${path}`;
+  return init ? fetch(url, init) : fetch(url);
 }
 
 async function check(res: Response): Promise<Response> {
@@ -50,17 +54,23 @@ async function check(res: Response): Promise<Response> {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+  const res = await check(await send(path, init));
   return res.json() as Promise<T>;
 }
 
 export async function requestVoid(path: string, init?: RequestInit): Promise<void> {
-  await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+  await check(await send(path, init));
 }
 ```
 
-Error normalization lives only in `check`. The standalone `json<T>` is deleted
-from `client.ts` and from all 11 modules.
+Error normalization lives only in `check`; the single `fetch` call lives in
+`send` (the future home for base URL / default headers). The standalone
+`json<T>` is deleted from `client.ts` and from all 11 modules.
+
+`send` keeps argument-less requests argument-less (`fetch(url)` rather than
+`fetch(url, undefined)`) so the consolidation is byte-identical to the previous
+direct-`fetch` call sites — an earlier merge-based draft passed `{ headers: {} }`
+on every GET, which is observably different and is avoided here.
 
 ## Migration (mechanical, signatures unchanged)
 
