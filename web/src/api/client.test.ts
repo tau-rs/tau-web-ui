@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getProject, listRuns, launchRun, getTrace, cancelRun, openRunSocket } from "./client";
+import {
+  getProject,
+  listRuns,
+  launchRun,
+  getTrace,
+  cancelRun,
+  openRunSocket,
+  request,
+  requestVoid,
+} from "./client";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -99,5 +108,52 @@ describe("api client (project-scoped)", () => {
     await Promise.all([listRuns("alpha"), listRuns("beta")]);
     const urls = f.mock.calls.map((c) => c[0]).sort();
     expect(urls).toEqual(["/api/projects/alpha/runs", "/api/projects/beta/runs"]);
+  });
+});
+
+describe("shared request helper (error normalization in one place)", () => {
+  it("request throws `${status}: ${text}` on a non-OK response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 503, text: async () => "down" }),
+    );
+    await expect(request("/api/anything")).rejects.toThrow("503: down");
+  });
+
+  it("request returns parsed JSON on an OK response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ a: 1 }) }));
+    expect(await request<{ a: number }>("/x")).toEqual({ a: 1 });
+  });
+
+  it("requestVoid throws `${status}: ${text}` on a non-OK response", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 404, text: async () => "nope" }),
+    );
+    await expect(requestVoid("/api/gone", { method: "DELETE" })).rejects.toThrow("404: nope");
+  });
+
+  it("requestVoid resolves without parsing JSON on an OK response", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal("fetch", f);
+    await expect(requestVoid("/api/ok", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+
+  it("forwards an init-less request to fetch with no second argument (byte-identical)", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    await request("/api/plain");
+    // A bare GET must call fetch(url) — not fetch(url, undefined) or
+    // fetch(url, {}). This keeps the consolidation byte-identical to the prior
+    // direct-fetch call sites and is the invariant `send` exists to preserve.
+    expect(f.mock.calls[0]).toEqual(["/api/plain"]);
+  });
+
+  it("forwards a caller's init through unchanged", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    const init = { method: "POST", headers: { "content-type": "application/json" }, body: "{}" };
+    await request("/api/thing", init);
+    expect(f.mock.calls[0]).toEqual(["/api/thing", init]);
   });
 });
