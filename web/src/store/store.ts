@@ -81,7 +81,10 @@ export const useStore = create<AppStore>((set, get) => {
   async function runTick() {
     timer = null;
     if (typeof document !== "undefined" && document.hidden) {
-      scheduleNext(pollMs); // paused while hidden — re-check at base interval
+      // Paused while hidden — re-check at base interval (not nextDelay): any
+      // accumulated `failures` are preserved, so on refocus we still respect
+      // the current backoff rather than hammering a known-failing gateway.
+      scheduleNext(pollMs);
       return;
     }
     try {
@@ -94,9 +97,12 @@ export const useStore = create<AppStore>((set, get) => {
   }
 
   const onVisible = () => {
+    // Refresh promptly when the tab is refocused. Only acts when a timer is
+    // pending (never mid-tick, since runTick nulls `timer` on entry); if a
+    // refresh is already in flight, the in-flight guard coalesces this tick.
     if (pollers > 0 && !document.hidden && timer !== null) {
       clearTimeout(timer);
-      void runTick(); // refresh promptly when the tab is refocused
+      void runTick();
     }
   };
 
@@ -130,6 +136,12 @@ export const useStore = create<AppStore>((set, get) => {
       }
     },
 
+    // Coalesces overlapping calls onto one fetch so a slow response can't be
+    // clobbered by the next poll tick. Callers in flight at the same time are
+    // assumed to share (pid, filters) — true today: the poller is the only
+    // repeat caller, and `launch`/`launchWorkflow` await this only to best-effort
+    // refresh the list (they navigate to the trace view, which loads its own
+    // data), so a coalesced-stale list self-heals on the next tick.
     refreshRuns: (pid, filters) => {
       if (runsInFlight) return runsInFlight; // dedup overlapping calls
       runsInFlight = listRuns(pid, filters)

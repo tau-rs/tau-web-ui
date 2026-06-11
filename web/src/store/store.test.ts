@@ -1,7 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { useStore } from "./store";
 import type { WsMessage } from "../types/WsMessage";
 import type { Span } from "../types/Span";
+
+// Safety net: restore real timers and global mocks even if a test throws before
+// its own cleanup. Scheduler tests must still unsubscribe to reset the store's
+// (closure) poller ref-count; this guards the shared vi state between files.
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 function span(id: string, status: Span["status"], name = "x"): Span {
   return {
@@ -184,9 +192,9 @@ describe("store.subscribeRuns scheduler", () => {
 
     const s = useStore.getState();
     const un1 = s.subscribeRuns("demo", 5000);
-    const un2 = s.subscribeRuns("demo", 5000);
+    const un2 = s.subscribeRuns("demo", 5000); // 2nd subscriber must NOT start a 2nd timer
 
-    await vi.advanceTimersByTimeAsync(0); // flush the immediate tick
+    await vi.advanceTimersByTimeAsync(0); // flush the single immediate tick
     fetchMock.mockClear();
 
     await vi.advanceTimersByTimeAsync(5000); // one interval
