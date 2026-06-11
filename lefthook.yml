@@ -1,0 +1,31 @@
+# Local git hooks — they call the SAME `just` verbs CI runs, so local == CI.
+# Install with `just hooks` (runs `lefthook install`).
+#
+# Tiering (mirrors tau): pre-commit is fast static analysis (seconds);
+# pre-push runs the bounded test + audit gate before sharing. Heavy /
+# container-based checks (full OS matrix, e2e, mutation) live in the T2
+# `v*`-tag tier and T3 schedules — NEVER on `git commit` / `git push`.
+#
+# Why tests are on pre-push, not pre-commit: `just test` builds the Rust
+# workspace (the acceptance test spawns the fake-tau-serve binary) and runs
+# 195 vitest specs — tens of seconds, not the seconds-range a commit hook
+# must stay in. pre-commit keeps to fmt + lint so `git commit` never blocks.
+
+pre-commit:
+  parallel: false # fmt writes & re-stages before lint reads the files
+  commands:
+    fmt:
+      run: just fmt
+      stage_fixed: true
+    lint:
+      run: just lint
+
+pre-push:
+  parallel: false
+  commands:
+    # The bounded `just ci` slice pre-commit skips: unit tests (both stacks)
+    # + supply-chain audit. No e2e / mutation here — those are T2 / T3 only.
+    test:
+      run: just test
+    deny:
+      run: just deny
