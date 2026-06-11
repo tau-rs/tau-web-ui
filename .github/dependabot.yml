@@ -1,13 +1,8 @@
+# GitHub Actions are managed by Renovate (renovate.json), which SHA-pins and
+# bumps action digests. Keeping a github-actions block here too would produce
+# duplicate bump PRs, so Dependabot owns only npm + cargo.
 version: 2
 updates:
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    groups:
-      github-actions:
-        patterns: ['*']
-
   - package-ecosystem: npm
     directory: /web
     schedule:
