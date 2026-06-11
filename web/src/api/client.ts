@@ -26,22 +26,40 @@ function scoped(pid: string, path: string): string {
   return `/api/projects/${pid}${path}`;
 }
 
-async function json<T>(res: Response): Promise<T> {
+const BASE = ""; // single future home for an absolute base URL
+
+/** Merge caller init over client defaults. Default headers live here so a
+ *  future Origin header (S1) or timeout/abort is added in ONE place. */
+function withDefaults(init?: RequestInit): RequestInit {
+  return { ...init, headers: { ...init?.headers } };
+}
+
+async function check(res: Response): Promise<Response> {
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  return res;
+}
+
+/** The single API request entrypoint: base URL + default headers + error
+ *  normalization, then JSON-decode the body. */
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await check(await fetch(`${BASE}${path}`, withDefaults(init)));
   return res.json() as Promise<T>;
 }
 
-export const getHealth = (pid: string) => fetch(scoped(pid, "/health")).then(json<Health>);
-export const getProject = (pid: string) => fetch(scoped(pid, "/project")).then(json<Project>);
+/** Like `request`, for endpoints that return no JSON body (e.g. DELETE). */
+export async function requestVoid(path: string, init?: RequestInit): Promise<void> {
+  await check(await fetch(`${BASE}${path}`, withDefaults(init)));
+}
+
+export const getHealth = (pid: string) => request<Health>(scoped(pid, "/health"));
+export const getProject = (pid: string) => request<Project>(scoped(pid, "/project"));
 
 export function launchRun(pid: string, agent_id: string, prompt: string): Promise<string> {
-  return fetch(scoped(pid, "/runs"), {
+  return request<{ run_id: string }>(scoped(pid, "/runs"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ agent_id, prompt }),
-  })
-    .then(json<{ run_id: string }>)
-    .then((r) => r.run_id);
+  }).then((r) => r.run_id);
 }
 
 export function listRuns(
@@ -52,30 +70,25 @@ export function listRuns(
   if (filters.status) q.set("status", filters.status);
   if (filters.agent) q.set("agent", filters.agent);
   const qs = q.toString();
-  return fetch(scoped(pid, `/runs${qs ? `?${qs}` : ""}`)).then(json<Run[]>);
+  return request<Run[]>(scoped(pid, `/runs${qs ? `?${qs}` : ""}`));
 }
 
 export const getWorkflows = (pid: string) =>
-  fetch(scoped(pid, "/workflows"))
-    .then(json<{ workflows: string[] }>)
-    .then((r) => r.workflows);
+  request<{ workflows: string[] }>(scoped(pid, "/workflows")).then((r) => r.workflows);
 
 export function launchWorkflow(pid: string, workflow: string, input: string): Promise<string> {
-  return fetch(scoped(pid, "/workflows/run"), {
+  return request<{ run_id: string }>(scoped(pid, "/workflows/run"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ workflow, input }),
-  })
-    .then(json<{ run_id: string }>)
-    .then((r) => r.run_id);
+  }).then((r) => r.run_id);
 }
 
-export const getTrace = (pid: string, id: string) =>
-  fetch(scoped(pid, `/runs/${id}`)).then(json<Trace>);
+export const getTrace = (pid: string, id: string) => request<Trace>(scoped(pid, `/runs/${id}`));
 export const cancelRun = (pid: string, id: string) =>
-  fetch(scoped(pid, `/runs/${id}/cancel`), { method: "POST" })
-    .then(json<{ cancelled: boolean }>)
-    .then((r) => r.cancelled);
+  request<{ cancelled: boolean }>(scoped(pid, `/runs/${id}/cancel`), { method: "POST" }).then(
+    (r) => r.cancelled,
+  );
 
 /** Open the live WS for a run under project `pid`. */
 export function openRunSocket(
