@@ -44,6 +44,16 @@ describe("CredentialChainEditor", () => {
     expect(putBody().local_value).toBe("sk-demo");
   });
 
+  it("suppresses autocomplete/spellcheck on the write-only secret input", async () => {
+    const user = userEvent.setup();
+    render(<CredentialChainEditor backend="anthropic" status={undefined} onSaved={() => {}} />);
+    await user.click(screen.getByRole("button", { name: "Local" }));
+    const input = screen.getByLabelText("local secret value");
+    expect(input).toHaveAttribute("type", "password");
+    expect(input).toHaveAttribute("autocomplete", "off");
+    expect(input).toHaveAttribute("spellcheck", "false");
+  });
+
   it("makes all eight kinds addable (no disabled group)", () => {
     render(<CredentialChainEditor backend="anthropic" status={undefined} onSaved={() => {}} />);
     for (const name of [

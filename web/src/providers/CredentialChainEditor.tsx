@@ -171,6 +171,8 @@ export function CredentialChainEditor({
             <input
               type="password"
               aria-label="local secret value"
+              autoComplete="off"
+              spellCheck={false}
               placeholder={
                 status?.sources.some((s) => s.kind === "local" && s.configured)
                   ? "•••••• (set — type to replace)"

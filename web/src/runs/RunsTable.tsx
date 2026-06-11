@@ -1,7 +1,6 @@
 import type { Run } from "../types/Run";
 import { StatusBadge, SubstrateModeBadge, TypeBadge } from "./badges";
 import { formatTokens, formatDuration, relativeTime, formatTokenSplit } from "./run-utils";
-import { ContextBar } from "../dashboard/ContextBar";
 
 function reasonOf(r: Run): { text: string; cls: string } {
   if (r.status === "failed") return { text: r.error?.kind ?? "failed", cls: "text-st-error" };
@@ -27,7 +26,6 @@ export function RunsTable({ runs, onOpen }: { runs: Run[]; onOpen: (id: string) 
             <th className="px-3 py-2 font-medium">Duration</th>
             <th className="px-3 py-2 font-medium">Tokens</th>
             <th className="px-3 py-2 font-medium">Reason</th>
-            <th className="px-3 py-2 font-medium">Context</th>
           </tr>
         </thead>
         <tbody>
@@ -69,9 +67,6 @@ export function RunsTable({ runs, onOpen }: { runs: Run[]; onOpen: (id: string) 
                   </span>
                 </td>
                 <td className={`px-3 py-2 text-xs ${reason.cls}`}>{reason.text}</td>
-                <td className="px-3 py-2">
-                  <ContextBar />
-                </td>
               </tr>
             );
           })}
