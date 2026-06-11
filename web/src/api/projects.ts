@@ -27,7 +27,7 @@ export const addProjectByGit = (git_url: string) =>
   });
 
 export const removeProject = (pid: string) =>
-  requestVoid(`/api/projects/${pid}`, { method: "DELETE" });
+  requestVoid(`/api/projects/${encodeURIComponent(pid)}`, { method: "DELETE" });
 
 export const saveWorkspaceAs = (name: string): Promise<ProjectMeta> =>
   request<ProjectMeta>("/api/workspace/save-as", {

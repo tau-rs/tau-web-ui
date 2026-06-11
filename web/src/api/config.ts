@@ -24,10 +24,12 @@ export const installPackage = (pid: string, git_url: string) =>
   }).then((r) => r.package);
 
 export const uninstallPackage = (pid: string, name: string) =>
-  request<{ ok: boolean }>(scopedPath(pid, `/packages/${name}`), { method: "DELETE" });
+  request<{ ok: boolean }>(scopedPath(pid, `/packages/${encodeURIComponent(name)}`), {
+    method: "DELETE",
+  });
 
 export const updatePackage = (pid: string, name: string, to?: string) =>
-  request<{ package: Package }>(scopedPath(pid, `/packages/${name}/update`), {
+  request<{ package: Package }>(scopedPath(pid, `/packages/${encodeURIComponent(name)}/update`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ to: to ?? null }),

@@ -23,7 +23,7 @@ export interface Trace {
 /** Build a path scoped to project `pid`. The project is always passed
  *  explicitly by the caller — there is no module-level "active project". */
 function scoped(pid: string, path: string): string {
-  return `/api/projects/${pid}${path}`;
+  return `/api/projects/${encodeURIComponent(pid)}${path}`;
 }
 
 const BASE = ""; // single future home for an absolute base URL
@@ -88,11 +88,12 @@ export function launchWorkflow(pid: string, workflow: string, input: string): Pr
   }).then((r) => r.run_id);
 }
 
-export const getTrace = (pid: string, id: string) => request<Trace>(scoped(pid, `/runs/${id}`));
+export const getTrace = (pid: string, id: string) =>
+  request<Trace>(scoped(pid, `/runs/${encodeURIComponent(id)}`));
 export const cancelRun = (pid: string, id: string) =>
-  request<{ cancelled: boolean }>(scoped(pid, `/runs/${id}/cancel`), { method: "POST" }).then(
-    (r) => r.cancelled,
-  );
+  request<{ cancelled: boolean }>(scoped(pid, `/runs/${encodeURIComponent(id)}/cancel`), {
+    method: "POST",
+  }).then((r) => r.cancelled);
 
 /** Open the live WS for a run under project `pid`. */
 export function openRunSocket(
@@ -101,7 +102,9 @@ export function openRunSocket(
   onMessage: (m: WsMessage) => void,
 ): WebSocket {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}${scoped(pid, `/runs/${id}/events`)}`);
+  const ws = new WebSocket(
+    `${proto}://${location.host}${scoped(pid, `/runs/${encodeURIComponent(id)}/events`)}`,
+  );
   ws.onmessage = (ev) => {
     try {
       onMessage(JSON.parse(ev.data) as WsMessage);
