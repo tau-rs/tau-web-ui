@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { DashboardPage } from "./DashboardPage";
 import { useStore } from "../store/store";
+import { ProjectProvider } from "../app/project-context";
 import type { Run } from "../types/Run";
 
 function run(p: Partial<Run>): Run {
@@ -29,7 +30,11 @@ beforeEach(() =>
 
 describe("DashboardPage", () => {
   it("renders headline stats, an agent row, and the context WIP marker", () => {
-    render(<DashboardPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <DashboardPage />
+      </ProjectProvider>,
+    );
     expect(screen.getByText("Runs")).toBeInTheDocument();
     expect(screen.getByText("researcher")).toBeInTheDocument();
     expect(screen.getAllByText(/wip/i).length).toBeGreaterThan(0);

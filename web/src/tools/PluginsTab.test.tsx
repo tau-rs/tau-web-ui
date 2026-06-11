@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PluginsTab } from "./PluginsTab";
+import { ProjectProvider } from "../app/project-context";
 
 const plugins = [
   {
@@ -54,7 +55,11 @@ beforeEach(() => {
 
 describe("PluginsTab", () => {
   it("lists plugins, selects the first by default, shows describe + transcript", async () => {
-    render(<PluginsTab />);
+    render(
+      <ProjectProvider pid="demo">
+        <PluginsTab />
+      </ProjectProvider>,
+    );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /fs-read/i })).toBeInTheDocument(),
     );
@@ -67,7 +72,11 @@ describe("PluginsTab", () => {
 
   it("switches selection and expands a frame to show JSON", async () => {
     const user = userEvent.setup();
-    render(<PluginsTab />);
+    render(
+      <ProjectProvider pid="demo">
+        <PluginsTab />
+      </ProjectProvider>,
+    );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /anthropic/i })).toBeInTheDocument(),
     );

@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PackagesPage } from "./PackagesPage";
-import { setActiveProject } from "../api/client";
+import { ProjectProvider } from "../app/project-context";
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  setActiveProject("demo");
 });
 
 describe("PackagesPage", () => {
@@ -44,7 +43,11 @@ describe("PackagesPage", () => {
         return Promise.resolve({ ok: true, json: async () => ({}) });
       }),
     );
-    render(<PackagesPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <PackagesPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("install git url"), {
       target: { value: "https://github.com/acme/cooltool.git" },

@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { Launcher } from "./Launcher";
 import { useStore } from "../store/store";
+import { ProjectProvider } from "../app/project-context";
 
 beforeEach(() => {
   useStore.setState({
@@ -16,14 +17,16 @@ describe("Launcher", () => {
     const launchWorkflow = vi.fn().mockResolvedValue("R1");
     useStore.setState({ launchWorkflow });
     render(
-      <MemoryRouter>
-        <Launcher />
-      </MemoryRouter>,
+      <ProjectProvider pid="demo">
+        <MemoryRouter>
+          <Launcher />
+        </MemoryRouter>
+      </ProjectProvider>,
     );
     fireEvent.click(screen.getByRole("button", { name: "Workflow" }));
     expect(screen.getByRole("option", { name: "nightly-research" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("prompt"), { target: { value: "q3" } });
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
-    expect(launchWorkflow).toHaveBeenCalledWith("nightly-research", "q3");
+    expect(launchWorkflow).toHaveBeenCalledWith("demo", "nightly-research", "q3");
   });
 });

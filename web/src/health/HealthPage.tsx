@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { CheckReport } from "../types/CheckReport";
 import type { CategoryStatus } from "../types/CategoryStatus";
 import { getChecks } from "../api/checks";
 import { useStore } from "../store/store";
+import { useProjectId } from "../app/project-context";
 
 const SEV_CLASS: Record<string, string> = {
   error: "bg-st-error-soft text-st-error",
@@ -28,24 +29,25 @@ function worst(c: CategoryStatus): "error" | "needs-setup" | "warning" | "pass" 
 }
 
 export function HealthPage() {
+  const pid = useProjectId();
   const health = useStore((s) => s.health);
   const loadHealth = useStore((s) => s.loadHealth);
   const [report, setReport] = useState<CheckReport | null>(null);
   const [filter, setFilter] = useState<string | null>(null);
 
-  function load() {
-    getChecks()
+  const load = useCallback(() => {
+    getChecks(pid)
       .then(setReport)
       .catch(() => {});
-  }
+  }, [pid]);
   // Re-run refreshes both the checks report and the connectivity strip it sits in.
   function rerun() {
     load();
-    loadHealth().catch(() => {});
+    loadHealth(pid).catch(() => {});
   }
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const findings = report?.findings ?? [];
   const shown = filter ? findings.filter((f) => f.category === filter) : findings;

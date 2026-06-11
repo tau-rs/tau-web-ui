@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { RunsView } from "./RunsView";
 import { useStore } from "../store/store";
+import { ProjectProvider } from "../app/project-context";
 import type { Run } from "../types/Run";
 
 function run(id: string, source: Run["source"], agent: string): Run {
@@ -29,9 +30,11 @@ describe("RunsView filter", () => {
       runs: [run("a", "serve", "greeter"), run("b", "log", "nightly-research")],
     });
     render(
-      <MemoryRouter>
-        <RunsView />
-      </MemoryRouter>,
+      <ProjectProvider pid="demo">
+        <MemoryRouter>
+          <RunsView />
+        </MemoryRouter>
+      </ProjectProvider>,
     );
     expect(screen.getByText("greeter")).toBeInTheDocument();
     expect(screen.getByText("nightly-research")).toBeInTheDocument();

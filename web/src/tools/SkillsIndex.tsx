@@ -1,24 +1,28 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { SkillSummary } from "../types/SkillSummary";
 import { listSkills, importSkill } from "../api/skills";
+import { useProjectId } from "../app/project-context";
 
 export function SkillsIndex() {
-  const { pid } = useParams();
+  const pid = useProjectId();
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [url, setUrl] = useState("");
 
-  const reload = () =>
-    listSkills()
-      .then(setSkills)
-      .catch(() => {});
+  const reload = useCallback(
+    () =>
+      listSkills(pid)
+        .then(setSkills)
+        .catch(() => {}),
+    [pid],
+  );
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   async function onImport() {
     if (!url.trim()) return;
-    await importSkill(url.trim()).catch(() => {});
+    await importSkill(pid, url.trim()).catch(() => {});
     setUrl("");
     reload();
   }

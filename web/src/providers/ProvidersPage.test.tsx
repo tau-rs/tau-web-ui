@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProvidersPage } from "./ProvidersPage";
+import { ProjectProvider } from "../app/project-context";
 
 const providers = [
   {
@@ -49,7 +50,11 @@ beforeEach(() => {
 
 describe("ProvidersPage", () => {
   it("renders providers with their credential status badge", async () => {
-    render(<ProvidersPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <ProvidersPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
     expect(screen.getByText("✓ via local")).toBeInTheDocument();
     expect(screen.getByText("🔒 none")).toBeInTheDocument();
@@ -57,7 +62,11 @@ describe("ProvidersPage", () => {
 
   it("expands a row into the credential chain editor", async () => {
     const user = userEvent.setup();
-    render(<ProvidersPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <ProvidersPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
     await user.click(screen.getAllByRole("button", { name: "set credential" })[0]);
     expect(screen.getByText(/credential chain — anthropic/i)).toBeInTheDocument();
@@ -66,7 +75,11 @@ describe("ProvidersPage", () => {
 
   it("Add provider posts an install", async () => {
     const user = userEvent.setup();
-    render(<ProvidersPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <ProvidersPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
     await user.type(
       screen.getByLabelText("add provider git url"),

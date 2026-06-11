@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AgentEditorPage } from "./AgentEditorPage";
-import { setActiveProject } from "../api/client";
+import { ProjectProvider } from "../app/project-context";
 
 function Probe() {
   const { pathname } = useLocation();
@@ -12,34 +12,35 @@ function Probe() {
 
 function renderAt(path: string) {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route
-          path="/projects/:pid/agents/new"
-          element={
-            <>
-              <AgentEditorPage />
-              <Probe />
-            </>
-          }
-        />
-        <Route
-          path="/projects/:pid/agents/:agentId"
-          element={
-            <>
-              <AgentEditorPage />
-              <Probe />
-            </>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <ProjectProvider pid="demo">
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route
+            path="/projects/:pid/agents/new"
+            element={
+              <>
+                <AgentEditorPage />
+                <Probe />
+              </>
+            }
+          />
+          <Route
+            path="/projects/:pid/agents/:agentId"
+            element={
+              <>
+                <AgentEditorPage />
+                <Probe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </ProjectProvider>,
   );
 }
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  setActiveProject("demo");
 });
 
 describe("AgentEditorPage", () => {

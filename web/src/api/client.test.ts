@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getProject, listRuns, launchRun, getTrace, cancelRun, setActiveProject } from "./client";
+import { getProject, listRuns, launchRun, getTrace, cancelRun } from "./client";
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  setActiveProject("demo");
 });
 
 function mockFetch(body: unknown, ok = true) {
@@ -24,14 +23,14 @@ describe("api client (project-scoped)", () => {
       json: async () => ({ project_path: "/p", agents: ["greeter"], tau_version: "0" }),
     });
     vi.stubGlobal("fetch", f);
-    await getProject();
+    await getProject("demo");
     expect(f.mock.calls[0][0]).toBe("/api/projects/demo/project");
   });
 
   it("launchRun posts to the scoped runs path and returns run_id", async () => {
     const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ run_id: "R1" }) });
     vi.stubGlobal("fetch", f);
-    const id = await launchRun("greeter", "hi");
+    const id = await launchRun("demo", "greeter", "hi");
     expect(id).toBe("R1");
     expect(f.mock.calls[0][0]).toBe("/api/projects/demo/runs");
     const [, init] = f.mock.calls[0];
@@ -40,19 +39,30 @@ describe("api client (project-scoped)", () => {
 
   it("getTrace returns run + spans from the scoped path", async () => {
     mockFetch({ run: { id: "R1" }, spans: [{ id: "s1" }] });
-    const t = await getTrace("R1");
+    const t = await getTrace("demo", "R1");
     expect(t.spans).toHaveLength(1);
   });
 
   it("cancelRun returns boolean", async () => {
     mockFetch({ cancelled: true });
-    expect(await cancelRun("R1")).toBe(true);
+    expect(await cancelRun("demo", "R1")).toBe(true);
   });
 
   it("listRuns passes filters under the scoped path", async () => {
     const f = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
     vi.stubGlobal("fetch", f);
-    await listRuns({ status: "completed" });
+    await listRuns("demo", { status: "completed" });
     expect(f.mock.calls[0][0]).toBe("/api/projects/demo/runs?status=completed");
+  });
+
+  it("scopes each request to its explicit project argument, not a shared default", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    // Two projects' requests must each hit their own project. The old API had no
+    // per-call project — it read a single mutable module global — so this could
+    // only ever target one project. Guards against reintroducing such a default.
+    await Promise.all([listRuns("alpha"), listRuns("beta")]);
+    const urls = f.mock.calls.map((c) => c[0]).sort();
+    expect(urls).toEqual(["/api/projects/alpha/runs", "/api/projects/beta/runs"]);
   });
 });

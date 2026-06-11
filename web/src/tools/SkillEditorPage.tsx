@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import type { SkillDetail } from "../types/SkillDetail";
 import { getSkill, putSkill, deleteSkill } from "../api/skills";
+import { useProjectId } from "../app/project-context";
 import { CapabilitiesEditor } from "./CapabilitiesEditor";
 import { PackageDepEditor } from "./PackageDepEditor";
 
@@ -30,7 +31,8 @@ function download(filename: string, text: string) {
 }
 
 export function SkillEditorPage() {
-  const { pid, name } = useParams();
+  const { name } = useParams();
+  const pid = useProjectId();
   const isNew = name === undefined;
   const navigate = useNavigate();
 
@@ -40,10 +42,10 @@ export function SkillEditorPage() {
 
   useEffect(() => {
     if (isNew || !name) return;
-    getSkill(name)
+    getSkill(pid, name)
       .then((d) => setS({ ...blank(), ...d, capabilities: d.capabilities ?? [] }))
       .catch(() => setError("could not load skill"));
-  }, [isNew, name]);
+  }, [isNew, name, pid]);
 
   const label = "mb-1 block text-[10px] uppercase tracking-wide text-muted";
   const input = "w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs";
@@ -57,7 +59,7 @@ export function SkillEditorPage() {
       return;
     }
     try {
-      await putSkill({ ...s, name: id }, { create: isNew });
+      await putSkill(pid, { ...s, name: id }, { create: isNew });
       navigate(`/projects/${pid}/tools/skills/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "save failed");
@@ -67,7 +69,7 @@ export function SkillEditorPage() {
   async function onDelete() {
     if (isNew || !name) return;
     try {
-      await deleteSkill(name);
+      await deleteSkill(pid, name);
       navigate(`/projects/${pid}/tools`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "delete failed");

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToolsTab } from "./ToolsTab";
+import { ProjectProvider } from "../app/project-context";
 
 const tools = [
   {
@@ -33,7 +34,11 @@ beforeEach(() => {
 describe("ToolsTab", () => {
   it("lists tools and expands one to show capability + used_by", async () => {
     const user = userEvent.setup();
-    render(<ToolsTab />);
+    render(
+      <ProjectProvider pid="demo">
+        <ToolsTab />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("fs-read")).toBeInTheDocument());
     expect(screen.getByText("shell")).toBeInTheDocument();
 
@@ -45,7 +50,11 @@ describe("ToolsTab", () => {
 
   it("shows 'unused' for a tool with no users when expanded", async () => {
     const user = userEvent.setup();
-    render(<ToolsTab />);
+    render(
+      <ProjectProvider pid="demo">
+        <ToolsTab />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("shell")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /shell/i }));
     expect(screen.getByText(/unused/i)).toBeInTheDocument();

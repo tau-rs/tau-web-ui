@@ -8,17 +8,17 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const listTargets = () => fetch(scopedPath("/targets")).then(json<Target[]>);
-export const listBundles = () => fetch(scopedPath("/bundles")).then(json<Bundle[]>);
-export const build = (target: string) =>
-  fetch(scopedPath("/build"), {
+export const listTargets = (pid: string) => fetch(scopedPath(pid, "/targets")).then(json<Target[]>);
+export const listBundles = (pid: string) => fetch(scopedPath(pid, "/bundles")).then(json<Bundle[]>);
+export const build = (pid: string, target: string) =>
+  fetch(scopedPath(pid, "/build"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ target }),
   }).then(json<Bundle>);
 
-export const verifyBundle = (path: string) =>
-  fetch(scopedPath("/verify"), {
+export const verifyBundle = (pid: string, path: string) =>
+  fetch(scopedPath(pid, "/verify"), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ path }),

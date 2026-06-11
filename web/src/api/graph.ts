@@ -6,5 +6,5 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const getWorkflowGraph = (name: string) =>
-  fetch(scopedPath(`/workflows/${name}/graph`)).then(json<WorkflowGraph>);
+export const getWorkflowGraph = (pid: string, name: string) =>
+  fetch(scopedPath(pid, `/workflows/${name}/graph`)).then(json<WorkflowGraph>);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store/store";
+import { useProjectId } from "../app/project-context";
 
 type Mode = "agent" | "workflow";
 
@@ -10,7 +11,7 @@ export function Launcher() {
   const launch = useStore((s) => s.launch);
   const launchWorkflow = useStore((s) => s.launchWorkflow);
   const loadWorkflows = useStore((s) => s.loadWorkflows);
-  const pid = useStore((s) => s.activeProjectId);
+  const pid = useProjectId();
   const navigate = useNavigate();
 
   const [mode, setMode] = useState<Mode>("agent");
@@ -20,8 +21,8 @@ export function Launcher() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    loadWorkflows().catch(() => {});
-  }, [loadWorkflows]);
+    loadWorkflows(pid).catch(() => {});
+  }, [loadWorkflows, pid]);
 
   const agents = project?.agents ?? [];
   const selAgent = agent || agents[0] || "";
@@ -34,8 +35,8 @@ export function Launcher() {
     try {
       const id =
         mode === "agent"
-          ? await launch(selAgent, prompt)
-          : await launchWorkflow(selWorkflow, prompt);
+          ? await launch(pid, selAgent, prompt)
+          : await launchWorkflow(pid, selWorkflow, prompt);
       setPrompt("");
       navigate(`/projects/${pid}/runs/${id}`);
     } finally {

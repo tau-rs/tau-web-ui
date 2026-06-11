@@ -3,11 +3,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ConfigPage } from "./ConfigPage";
 import { Toaster } from "../notify/Toaster";
 import { useNotifications } from "../notify/notify";
-import { setActiveProject } from "../api/client";
+import { ProjectProvider } from "../app/project-context";
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  setActiveProject("demo");
   useNotifications.setState({ items: [] });
 });
 
@@ -35,7 +34,11 @@ describe("ConfigPage", () => {
         };
       return { ok: true };
     });
-    render(<ConfigPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <ConfigPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByDisplayValue("demo")).toBeInTheDocument());
     expect(screen.getByText("greeter")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("project name"), { target: { value: "renamed" } });
@@ -67,10 +70,10 @@ describe("ConfigPage", () => {
       }),
     );
     render(
-      <>
+      <ProjectProvider pid="demo">
         <ConfigPage />
         <Toaster />
-      </>,
+      </ProjectProvider>,
     );
     await waitFor(() => expect(screen.getByDisplayValue("demo")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

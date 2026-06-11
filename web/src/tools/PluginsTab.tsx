@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import type { PluginDetail } from "../types/PluginDetail";
 import type { ProtocolFrame } from "../types/ProtocolFrame";
 import { listPlugins } from "../api/plugins";
+import { useProjectId } from "../app/project-context";
 
 export function PluginsTab() {
+  const pid = useProjectId();
   const [plugins, setPlugins] = useState<PluginDetail[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    listPlugins()
+    listPlugins(pid)
       .then((p) => {
         setPlugins(p);
         setSelected((cur) => cur ?? p[0]?.name ?? null);
       })
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   const current = plugins.find((p) => p.name === selected) ?? null;
 
