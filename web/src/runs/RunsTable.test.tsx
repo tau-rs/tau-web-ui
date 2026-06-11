@@ -30,6 +30,24 @@ describe("RunsTable", () => {
     expect(onOpen).toHaveBeenCalledWith("R1");
   });
 
+  it("exposes each row as a focusable button", () => {
+    render(<RunsTable runs={[run]} onOpen={() => {}} />);
+    const row = screen.getByRole("button", { name: /open run greeter/i });
+    expect(row).toHaveAttribute("tabindex", "0");
+  });
+
+  it("fires onOpen when a focused row is activated with Enter or Space", () => {
+    const onOpen = vi.fn();
+    render(<RunsTable runs={[run]} onOpen={onOpen} />);
+    const row = screen.getByRole("button", { name: /open run greeter/i });
+    // fireEvent returns false when a handler called preventDefault — Space must
+    // preventDefault so activating a focused row never scrolls the page.
+    expect(fireEvent.keyDown(row, { key: "Enter" })).toBe(false);
+    expect(fireEvent.keyDown(row, { key: " " })).toBe(false);
+    expect(onOpen).toHaveBeenCalledTimes(2);
+    expect(onOpen).toHaveBeenCalledWith("R1");
+  });
+
   it("shows an empty state when no runs", () => {
     render(<RunsTable runs={[]} onOpen={() => {}} />);
     expect(screen.getByText(/no runs yet/i)).toBeInTheDocument();

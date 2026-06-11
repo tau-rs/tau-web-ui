@@ -28,4 +28,19 @@ describe("TraceTimeline", () => {
     fireEvent.click(row);
     expect(useStore.getState().selectedSpanId).toBe("fs-read");
   });
+
+  it("exposes each row as a focusable button that selects on Enter and Space", () => {
+    render(<TraceTimeline spans={[span("turn1", null), span("fs-read", "turn1")]} />);
+    const leaf = screen.getByRole("button", { name: /select span fs-read/i });
+    expect(leaf).toHaveAttribute("tabindex", "0");
+
+    // fireEvent returns false when a handler called preventDefault — Space must
+    // preventDefault so activating a focused row never scrolls the page.
+    expect(fireEvent.keyDown(leaf, { key: "Enter" })).toBe(false);
+    expect(useStore.getState().selectedSpanId).toBe("fs-read");
+
+    const other = screen.getByRole("button", { name: /select span turn1/i });
+    expect(fireEvent.keyDown(other, { key: " " })).toBe(false);
+    expect(useStore.getState().selectedSpanId).toBe("turn1");
+  });
 });

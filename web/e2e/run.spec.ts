@@ -8,7 +8,7 @@ test("launch a run and watch the live trace build", async ({ page }) => {
 
   await page.getByLabel("prompt").fill("hello from e2e");
   const t0 = Date.now();
-  await page.getByRole("button", { name: "Run" }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
 
   await expect(page.getByText(/Hello!/)).toBeVisible({ timeout: 1500 });
   const firstPaint = Date.now() - t0;
@@ -40,7 +40,7 @@ test("launch a run and watch the live trace build", async ({ page }) => {
 test("cancel mid-run", async ({ page }) => {
   await page.goto(`${P}/runs`);
   await page.getByLabel("prompt").fill("long run");
-  await page.getByRole("button", { name: "Run" }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByText("cancelled")).toBeVisible({ timeout: 5000 });
 });
@@ -50,7 +50,7 @@ test("launch a workflow and watch the step trace", async ({ page }) => {
   await page.getByRole("button", { name: "Workflow", exact: true }).click();
   await page.getByLabel("workflow").selectOption("nightly-research");
   await page.getByLabel("prompt").fill("q3 churn");
-  await page.getByRole("button", { name: "Run" }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
 
   await expect(page.getByText("gather")).toBeVisible({ timeout: 5000 });
   await expect(page.getByText("save-results")).toBeVisible({ timeout: 5000 });
@@ -369,7 +369,7 @@ test("trace: the Agents tab shows the run's spawned sub-agents", async ({ page }
   await page.goto(`${P}/runs`);
   await page.getByLabel("agent").selectOption("researcher");
   await page.getByLabel("prompt").fill("research e2e");
-  await page.getByRole("button", { name: "Run" }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
 
   // the trace header confirms the researcher run is building inline
   await expect(page.getByText(/Trace · researcher/)).toBeVisible({ timeout: 5000 });
