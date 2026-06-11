@@ -36,8 +36,17 @@ export function RunsTable({ runs, onOpen }: { runs: Run[]; onOpen: (id: string) 
             return (
               <tr
                 key={r.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open run ${r.agent_id}`}
                 onClick={() => onOpen(r.id)}
-                className="cursor-pointer border-b border-border last:border-0 hover:bg-bg"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onOpen(r.id);
+                  }
+                }}
+                className="cursor-pointer border-b border-border last:border-0 hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
               >
                 <td className="px-3 py-2">
                   <TypeBadge source={r.source} />
