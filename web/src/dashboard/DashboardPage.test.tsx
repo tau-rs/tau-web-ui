@@ -25,7 +25,11 @@ function run(p: Partial<Run>): Run {
 }
 
 beforeEach(() =>
-  useStore.setState({ runs: [run({ id: "a" }), run({ id: "b", agent_id: "researcher" })] }),
+  useStore.setState({
+    runs: [run({ id: "a" }), run({ id: "b", agent_id: "researcher" })],
+    runsLoaded: true,
+    runsError: null,
+  }),
 );
 
 describe("DashboardPage", () => {
@@ -38,5 +42,37 @@ describe("DashboardPage", () => {
     expect(screen.getByText("Runs")).toBeInTheDocument();
     expect(screen.getByText("researcher")).toBeInTheDocument();
     expect(screen.getAllByText(/wip/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows a loading skeleton before the first runs load (distinct from empty)", () => {
+    useStore.setState({ runs: [], runsLoaded: false, runsError: null });
+    render(
+      <ProjectProvider pid="demo">
+        <DashboardPage />
+      </ProjectProvider>,
+    );
+    expect(screen.getByTestId("dashboard-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText("Runs")).not.toBeInTheDocument();
+  });
+
+  it("shows an empty hint when loaded with zero runs", () => {
+    useStore.setState({ runs: [], runsLoaded: true, runsError: null });
+    render(
+      <ProjectProvider pid="demo">
+        <DashboardPage />
+      </ProjectProvider>,
+    );
+    expect(screen.getByText(/no runs yet — launch/i)).toBeInTheDocument();
+  });
+
+  it("shows an outage banner with the reason when the first load failed (not the empty hint)", () => {
+    useStore.setState({ runs: [], runsLoaded: true, runsError: "500: gateway down" });
+    render(
+      <ProjectProvider pid="demo">
+        <DashboardPage />
+      </ProjectProvider>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/500: gateway down/);
+    expect(screen.queryByText(/no runs yet — launch/i)).not.toBeInTheDocument();
   });
 });

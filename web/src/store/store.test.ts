@@ -186,6 +186,52 @@ describe("store project scope", () => {
   });
 });
 
+describe("store.refreshRuns status", () => {
+  it("records runsError and re-throws on failure, but marks loaded", async () => {
+    useStore.setState({ runsLoaded: false, runsError: null });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" }),
+    );
+    await expect(useStore.getState().refreshRuns("demo")).rejects.toThrow();
+    expect(useStore.getState().runsLoaded).toBe(true);
+    expect(useStore.getState().runsError).toContain("500");
+    vi.restoreAllMocks();
+  });
+
+  it("clears runsError on success", async () => {
+    useStore.setState({ runsError: "old" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+    await useStore.getState().refreshRuns("demo");
+    expect(useStore.getState().runsLoaded).toBe(true);
+    expect(useStore.getState().runsError).toBeNull();
+    vi.restoreAllMocks();
+  });
+});
+
+describe("store.loadHealth connectivity", () => {
+  it("captures the reason on failure and keeps the last snapshot + contact time", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ gateway_ok: true, engine_ok: true, tau_bin: "x", tau_version: "1" }),
+      }),
+    );
+    await useStore.getState().loadHealth("demo");
+    const contactAt = useStore.getState().healthCheckedAt;
+    expect(contactAt).not.toBeNull();
+    expect(useStore.getState().healthError).toBeNull();
+
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Failed to fetch")));
+    await useStore.getState().loadHealth("demo");
+    expect(useStore.getState().healthError).toBe("Failed to fetch");
+    expect(useStore.getState().health?.gateway_ok).toBe(true);
+    expect(useStore.getState().healthCheckedAt).toBe(contactAt);
+    vi.restoreAllMocks();
+  });
+});
+
 const okFetch = () => vi.fn().mockResolvedValue({ ok: true, json: async () => [] as unknown[] });
 const errFetch = () =>
   vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" });

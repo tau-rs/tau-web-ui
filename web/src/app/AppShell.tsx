@@ -1,13 +1,15 @@
 import { useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { useStore } from "../store/store";
 import { Sidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { Toaster } from "../notify/Toaster";
 
 export function AppShell() {
   const loadProjects = useStore((s) => s.loadProjects);
+  const { key } = useLocation();
   useEffect(() => {
     loadProjects().catch(() => {});
   }, [loadProjects]);
@@ -19,7 +21,9 @@ export function AppShell() {
         <div className="flex min-w-0 flex-1 flex-col">
           <Navbar />
           <main className="min-h-0 flex-1 overflow-auto">
-            <Outlet />
+            <ErrorBoundary resetKey={key}>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       </div>

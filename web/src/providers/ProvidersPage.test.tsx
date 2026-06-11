@@ -94,4 +94,42 @@ describe("ProvidersPage", () => {
       );
     });
   });
+
+  it("shows skeleton rows while providers load, distinct from the empty state", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/api/credentials"))
+          return Promise.resolve({ ok: true, json: async () => [], text: async () => "" });
+        if (url.includes("/providers")) return new Promise(() => {});
+        return Promise.resolve({ ok: true, json: async () => ({}), text: async () => "" });
+      }),
+    );
+    render(
+      <ProjectProvider pid="demo">
+        <ProvidersPage />
+      </ProjectProvider>,
+    );
+    expect(await screen.findByTestId("providers-skeleton")).toBeInTheDocument();
+    expect(screen.queryByText(/no providers/i)).not.toBeInTheDocument();
+  });
+
+  it("shows an empty state when no providers are returned", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/api/credentials"))
+          return Promise.resolve({ ok: true, json: async () => [], text: async () => "" });
+        if (url.includes("/providers"))
+          return Promise.resolve({ ok: true, json: async () => [], text: async () => "" });
+        return Promise.resolve({ ok: true, json: async () => ({}), text: async () => "" });
+      }),
+    );
+    render(
+      <ProjectProvider pid="demo">
+        <ProvidersPage />
+      </ProjectProvider>,
+    );
+    expect(await screen.findByText(/no providers/i)).toBeInTheDocument();
+  });
 });

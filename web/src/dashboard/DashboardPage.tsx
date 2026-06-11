@@ -8,6 +8,7 @@ import { StatusBars } from "./StatusBars";
 import { RunsSparkline } from "./RunsSparkline";
 import { AgentTable } from "./AgentTable";
 import { TopErrors } from "./TopErrors";
+import { Skeleton } from "../app/Skeleton";
 
 const fmtTok = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
@@ -22,12 +23,49 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-3 p-4" data-testid="dashboard-skeleton" aria-busy="true">
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-16" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <Skeleton className="h-32" />
+        <Skeleton className="h-32" />
+      </div>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   usePollRuns();
   const runs = useStore((s) => s.runs);
+  const runsLoaded = useStore((s) => s.runsLoaded);
+  const runsError = useStore((s) => s.runsError);
   const m = useMemo(() => computeMetrics(runs), [runs]);
+
+  if (!runsLoaded) return <DashboardSkeleton />;
+
   return (
     <div className="space-y-3 p-4">
+      {runsError ? (
+        // A failed load is an outage, not an empty project — surface the reason
+        // instead of the "no runs yet" hint (D14: don't let down look like empty).
+        <div
+          role="alert"
+          className="rounded-lg border border-st-error/40 bg-st-error-soft px-3 py-2 text-xs text-st-error"
+        >
+          Couldn’t load runs: {runsError}
+        </div>
+      ) : (
+        runs.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-2 text-xs text-muted">
+            No runs yet — launch an agent or workflow to populate the dashboard.
+          </div>
+        )
+      )}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard
           label="Runs"

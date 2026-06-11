@@ -5,22 +5,20 @@ import { getProviders } from "../api/providers";
 import { installPackage } from "../api/config";
 import { getCredentials } from "../api/credentials";
 import { useProjectId } from "../app/project-context";
+import { useAsync } from "../app/useAsync";
+import { Async } from "../app/Async";
+import { Skeleton } from "../app/Skeleton";
 import { CredentialChainEditor } from "./CredentialChainEditor";
 
 export function ProvidersPage() {
   const pid = useProjectId();
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const providersState = useAsync<Provider[]>(() => getProviders(pid), [pid], {
+    isEmpty: (ps) => ps.length === 0,
+  });
   const [creds, setCreds] = useState<Record<string, BackendCredentialStatus>>({});
   const [url, setUrl] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const reloadProviders = useCallback(
-    () =>
-      getProviders(pid)
-        .then(setProviders)
-        .catch(() => {}),
-    [pid],
-  );
   const reloadCreds = useCallback(
     () =>
       getCredentials()
@@ -29,15 +27,14 @@ export function ProvidersPage() {
     [],
   );
   useEffect(() => {
-    reloadProviders();
     reloadCreds();
-  }, [reloadProviders, reloadCreds]);
+  }, [reloadCreds]);
 
   async function onAdd() {
     if (!url.trim()) return;
     await installPackage(pid, url).catch(() => {});
     setUrl("");
-    reloadProviders();
+    providersState.reload();
   }
 
   const btn = "rounded-md px-2.5 py-1 text-xs font-medium";
@@ -52,28 +49,8 @@ export function ProvidersPage() {
     return <span className={`${badge} bg-amber-100 text-amber-800`}>🔒 none</span>;
   }
 
-  return (
-    <div className="space-y-3 p-4">
-      <h2 className="text-base font-semibold">Providers</h2>
-      <p className="max-w-2xl text-xs text-muted">
-        LLM backends available to this project&apos;s agents. The <b>recommended</b> one is the
-        most-used backend across your agents. Credentials are <b>per machine</b> and resolve through
-        an ordered source chain (first that resolves wins).
-      </p>
-
-      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3">
-        <input
-          aria-label="add provider git url"
-          placeholder="https://github.com/org/llm-backend.git"
-          className={`min-w-0 flex-1 ${input}`}
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
-        <button onClick={onAdd} className={`${btn} bg-accent text-accent-fg`}>
-          Add provider
-        </button>
-      </div>
-
+  function ProviderRows({ providers }: { providers: Provider[] }) {
+    return (
       <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -133,6 +110,52 @@ export function ProvidersPage() {
           </tbody>
         </table>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 p-4">
+      <h2 className="text-base font-semibold">Providers</h2>
+      <p className="max-w-2xl text-xs text-muted">
+        LLM backends available to this project&apos;s agents. The <b>recommended</b> one is the
+        most-used backend across your agents. Credentials are <b>per machine</b> and resolve through
+        an ordered source chain (first that resolves wins).
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-surface p-3">
+        <input
+          aria-label="add provider git url"
+          placeholder="https://github.com/org/llm-backend.git"
+          className={`min-w-0 flex-1 ${input}`}
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+        />
+        <button onClick={onAdd} className={`${btn} bg-accent text-accent-fg`}>
+          Add provider
+        </button>
+      </div>
+
+      <Async
+        state={providersState}
+        skeleton={
+          <div
+            className="space-y-2 rounded-lg border border-border bg-surface p-3"
+            data-testid="providers-skeleton"
+            aria-busy="true"
+          >
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-6" />
+            ))}
+          </div>
+        }
+        empty={
+          <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-4 text-center text-xs text-muted">
+            No providers — add one above to get started.
+          </div>
+        }
+      >
+        {(providers) => <ProviderRows providers={providers} />}
+      </Async>
     </div>
   );
 }

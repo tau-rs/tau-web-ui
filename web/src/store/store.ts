@@ -18,6 +18,7 @@ import {
 } from "../api/client";
 import { listProjects } from "../api/projects";
 import type { ProjectListItem } from "../types/ProjectListItem";
+import { errorMessage } from "../notify/notify";
 
 interface TraceState {
   run: Run;
@@ -26,8 +27,12 @@ interface TraceState {
 
 interface AppStore {
   health: Health | null;
+  healthError: string | null;
+  healthCheckedAt: number | null;
   project: Project | null;
   runs: Run[];
+  runsLoaded: boolean;
+  runsError: string | null;
   workflows: string[];
   currentTrace: TraceState | null;
   assistantText: string;
@@ -108,8 +113,12 @@ export const useStore = create<AppStore>((set, get) => {
 
   return {
     health: null,
+    healthError: null,
+    healthCheckedAt: null,
     project: null,
     runs: [],
+    runsLoaded: false,
+    runsError: null,
     workflows: [],
     currentTrace: null,
     assistantText: "",
@@ -120,9 +129,10 @@ export const useStore = create<AppStore>((set, get) => {
 
     loadHealth: async (pid) => {
       try {
-        set({ health: await getHealth(pid) });
-      } catch {
-        /* gateway unreachable — leave health null */
+        set({ health: await getHealth(pid), healthError: null, healthCheckedAt: Date.now() });
+      } catch (e) {
+        // Keep the last snapshot + contact time; record why the latest contact failed.
+        set({ healthError: errorMessage(e) });
       }
     },
     loadProject: async (pid) => set({ project: await getProject(pid) }),
@@ -145,7 +155,12 @@ export const useStore = create<AppStore>((set, get) => {
     refreshRuns: (pid, filters) => {
       if (runsInFlight) return runsInFlight; // dedup overlapping calls
       runsInFlight = listRuns(pid, filters)
-        .then((runs) => void set({ runs }))
+        .then((runs) => void set({ runs, runsLoaded: true, runsError: null }))
+        .catch((e) => {
+          // Record status for first-load UI, then rethrow so the poll tick backs off.
+          set({ runsLoaded: true, runsError: errorMessage(e) });
+          throw e;
+        })
         .finally(() => {
           runsInFlight = null;
         });

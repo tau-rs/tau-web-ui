@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useStore } from "../store/store";
+import { relativeTime } from "./relative-time";
 import { SaveAsProjectForm } from "../projects/SaveAsProjectForm";
 
 function subRoute(pathname: string, pid: string): string {
@@ -12,6 +13,9 @@ export function Navbar() {
   const pid = useStore((s) => s.activeProjectId);
   const projects = useStore((s) => s.projects);
   const project = useStore((s) => s.project);
+  const health = useStore((s) => s.health);
+  const healthError = useStore((s) => s.healthError);
+  const healthCheckedAt = useStore((s) => s.healthCheckedAt);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
@@ -89,10 +93,21 @@ export function Navbar() {
       <span className="ml-auto font-mono text-xs text-muted">
         {project?.project_path ?? "connecting…"}
       </span>
-      <span
-        title={project ? "engine reachable" : "no engine"}
-        className={`h-2.5 w-2.5 rounded-full ${project ? "bg-st-ok" : "bg-st-error"}`}
-      />
+      {(() => {
+        const lastOk = healthCheckedAt ? ` · last ok ${relativeTime(healthCheckedAt)}` : "";
+        const engineUp = !!health?.engine_ok && healthError == null;
+        const title = healthError
+          ? `unreachable — ${healthError}${lastOk}`
+          : engineUp
+            ? `engine reachable${lastOk}`
+            : `no engine${lastOk}`;
+        return (
+          <span
+            title={title}
+            className={`h-2.5 w-2.5 rounded-full ${project ? "bg-st-ok" : "bg-st-error"}`}
+          />
+        );
+      })()}
       <span className="text-xs text-muted">tau {project?.tau_version ?? "—"}</span>
     </header>
   );
