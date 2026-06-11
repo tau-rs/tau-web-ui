@@ -31,6 +31,26 @@ describe("useAsync", () => {
     expect(spy).toHaveBeenCalled();
   });
 
+  it("a 500 through the real client lands on error, not empty", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" }),
+    );
+    const { request } = await import("../api/client");
+    const { result } = renderHook(() =>
+      // isEmpty would classify a [] result as empty — a failed read must NOT take
+      // that branch; it must surface as an error.
+      useAsync(() => request<number[]>("/api/x"), [], { isEmpty: (d) => d.length === 0 }),
+    );
+    expect(result.current.status).toBe("loading");
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    const s = result.current;
+    if (s.status !== "error") throw new Error("expected error");
+    expect(s.error).toContain("500");
+    expect(spy).toHaveBeenCalled();
+  });
+
   it("reload re-runs the fetcher", async () => {
     let n = 0;
     const { result } = renderHook(() => useAsync(() => Promise.resolve(++n), []));

@@ -20,10 +20,16 @@ export interface Trace {
   events: Event[];
 }
 
+/** API root path. Override with `VITE_API_ROOT` (e.g. to point the UI at a
+ *  gateway that mounts its REST/WS surface somewhere other than `/api`).
+ *  Defaults to today's value so behavior is unchanged when unset. This is the
+ *  single home for the root; the sibling api modules import it. */
+export const API_ROOT = import.meta.env.VITE_API_ROOT ?? "/api";
+
 /** Build a path scoped to project `pid`. The project is always passed
  *  explicitly by the caller — there is no module-level "active project". */
 function scoped(pid: string, path: string): string {
-  return `/api/projects/${encodeURIComponent(pid)}${path}`;
+  return `${API_ROOT}/projects/${encodeURIComponent(pid)}${path}`;
 }
 
 const BASE = ""; // single future home for an absolute base URL
@@ -95,11 +101,14 @@ export const cancelRun = (pid: string, id: string) =>
     method: "POST",
   }).then((r) => r.cancelled);
 
-/** Open the live WS for a run under project `pid`. */
+/** Open the live WS for a run under project `pid`. `onClose` (optional) fires
+ *  when the socket closes — whether dropped or torn down — so callers can
+ *  reflect a lost connection (inspect `CloseEvent.wasClean` to tell them apart). */
 export function openRunSocket(
   pid: string,
   id: string,
   onMessage: (m: WsMessage) => void,
+  onClose?: () => void,
 ): WebSocket {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(
@@ -112,6 +121,7 @@ export function openRunSocket(
       /* ignore malformed */
     }
   };
+  if (onClose) ws.onclose = () => onClose();
   return ws;
 }
 
