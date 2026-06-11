@@ -52,7 +52,79 @@ async fn handle(mut socket: WebSocket, state: AppState, run_id: String) {
     }
 }
 
+/// A frame prepared for the wire, or a signal to drop it. Split from the socket
+/// I/O in `send` so the serialization-failure path is unit-testable without a
+/// live socket (a `WsMessage` itself never holds the float/non-string-key shapes
+/// that make `serde_json` fail, so the failure can only be exercised generically).
+enum Outgoing {
+    Frame(Message),
+    /// Serialization failed; the caller should close the socket cleanly.
+    Drop,
+}
+
+fn prepare<T: serde::Serialize>(m: &T) -> Outgoing {
+    match serde_json::to_string(m) {
+        Ok(txt) => Outgoing::Frame(Message::Text(txt.into())),
+        Err(e) => {
+            tracing::warn!("dropping WS frame: serialization failed: {e}");
+            Outgoing::Drop
+        }
+    }
+}
+
 async fn send(socket: &mut WebSocket, m: &WsMessage) -> Result<(), axum::Error> {
-    let txt = serde_json::to_string(m).unwrap();
-    socket.send(Message::Text(txt.into())).await
+    match prepare(m) {
+        Outgoing::Frame(frame) => socket.send(frame).await,
+        // Serialization failed (logged in `prepare`): close cleanly so the client
+        // gets a Close frame, and signal Err so the caller stops streaming —
+        // instead of `unwrap()` panicking the task that owns this socket.
+        Outgoing::Drop => {
+            let _ = socket.close().await;
+            Err(axum::Error::new("ws frame serialization failed"))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::trace::Event;
+
+    fn event_frame() -> WsMessage {
+        WsMessage::Event {
+            event: Event {
+                run_id: "R1".into(),
+                span_id: None,
+                ts: "t".into(),
+                kind: "text_delta".into(),
+                payload: serde_json::json!({ "text": "hi" }),
+            },
+        }
+    }
+
+    #[test]
+    fn prepare_wraps_a_serializable_frame_as_a_text_message() {
+        match prepare(&event_frame()) {
+            Outgoing::Frame(Message::Text(txt)) => {
+                assert!(txt.contains("\"type\":\"event\""));
+                assert!(txt.contains("\"text\":\"hi\""));
+            }
+            _ => panic!("expected a text frame"),
+        }
+    }
+
+    #[test]
+    fn prepare_drops_an_unserializable_value_instead_of_panicking() {
+        // A map with a non-string (tuple) key cannot be a JSON object, so
+        // `serde_json::to_string` errors. The previous `to_string(..).unwrap()`
+        // would have panicked the socket task; `prepare` must map it to a clean
+        // Drop so the send path can close the socket gracefully.
+        let mut bad = std::collections::BTreeMap::new();
+        bad.insert((1u8, 2u8), 3u8);
+        assert!(
+            serde_json::to_string(&bad).is_err(),
+            "fixture must be unserializable"
+        );
+        assert!(matches!(prepare(&bad), Outgoing::Drop));
+    }
 }

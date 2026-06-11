@@ -59,10 +59,20 @@ interface AppStore {
   applyWs: (m: WsMessage) => void;
 }
 
+/** Safely pull the delta text out of an Event's free-form (`unknown`) payload,
+ *  without trusting the shape — a non-`{ text: string }` payload yields "". */
+function deltaText(payload: unknown): string {
+  if (typeof payload === "object" && payload !== null) {
+    const text = (payload as { text?: unknown }).text;
+    if (typeof text === "string") return text;
+  }
+  return "";
+}
+
 function assistantTextFromEvents(events?: Event[]): string {
   return (events ?? [])
     .filter((e) => e.kind === "text_delta")
-    .map((e) => (e.payload as { text?: string }).text ?? "")
+    .map((e) => deltaText(e.payload))
     .join("");
 }
 
@@ -259,8 +269,7 @@ export const useStore = create<AppStore>((set, get) => {
         }
         case "event":
           if (m.event.kind === "text_delta") {
-            const t = (m.event.payload as { text?: string }).text ?? "";
-            set({ assistantText: state.assistantText + t });
+            set({ assistantText: state.assistantText + deltaText(m.event.payload) });
           }
           break;
         case "run_update":
@@ -268,7 +277,12 @@ export const useStore = create<AppStore>((set, get) => {
             set({ currentTrace: { ...state.currentTrace, run: m.run } });
           }
           set({ runs: state.runs.map((r) => (r.id === m.run.id ? m.run : r)) });
-          if (m.run.status !== "running") get().socket?.close();
+          // Terminal status: close the live socket AND drop the reference, so a
+          // later closeTrace() can't double-close a stale socket (mirrors openTrace).
+          if (m.run.status !== "running") {
+            get().socket?.close();
+            set({ socket: null });
+          }
           break;
       }
     },

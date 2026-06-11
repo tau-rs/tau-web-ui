@@ -2,6 +2,8 @@ import type { Event } from "../types/Event";
 import type { Run } from "../types/Run";
 import type { Span } from "../types/Span";
 import type { WsMessage } from "../types/WsMessage";
+import { parseWsMessage } from "./wsMessage";
+import { surfaceError } from "../notify/notify";
 
 export interface Project {
   project_path: string;
@@ -106,11 +108,18 @@ export function openRunSocket(
     `${proto}://${location.host}${scoped(pid, `/runs/${encodeURIComponent(id)}/events`)}`,
   );
   ws.onmessage = (ev) => {
+    let msg: WsMessage;
     try {
-      onMessage(JSON.parse(ev.data) as WsMessage);
-    } catch {
-      /* ignore malformed */
+      msg = parseWsMessage(ev.data);
+    } catch (e) {
+      // A malformed or drifted frame must not drive state silently — surface it
+      // (log + toast) so protocol drift is visible instead of swallowed. Toast
+      // rate-limiting for a sustained bad-frame stream belongs with reconnect
+      // handling (G2), out of scope here.
+      surfaceError("Dropped a live update (unrecognized frame)", e);
+      return;
     }
+    onMessage(msg);
   };
   return ws;
 }
