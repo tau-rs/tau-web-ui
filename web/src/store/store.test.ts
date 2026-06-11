@@ -21,6 +21,7 @@ describe("store.applyWs", () => {
   it("snapshot replaces the current trace", () => {
     useStore.getState().applyWs({
       type: "snapshot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
       run: { id: "R1", status: "running" } as any,
       spans: [span("s1", "running")],
       events: [],
@@ -33,6 +34,7 @@ describe("store.applyWs", () => {
     const s = useStore.getState();
     s.applyWs({
       type: "snapshot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
       run: { id: "R1", status: "running" } as any,
       spans: [span("s1", "running")],
       events: [],
@@ -47,6 +49,7 @@ describe("store.applyWs", () => {
     const s = useStore.getState();
     s.applyWs({
       type: "snapshot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
       run: { id: "R1", status: "running" } as any,
       spans: [],
       events: [],
@@ -65,6 +68,7 @@ describe("store.applyWs", () => {
   it("snapshot reconstructs assistant text from text_delta events", () => {
     useStore.getState().applyWs({
       type: "snapshot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
       run: { id: "R1", status: "running" } as any,
       spans: [],
       events: [
@@ -79,10 +83,12 @@ describe("store.applyWs", () => {
     const s = useStore.getState();
     s.applyWs({
       type: "snapshot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
       run: { id: "R1", status: "running" } as any,
       spans: [],
       events: [],
     } as WsMessage);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
     s.applyWs({ type: "run_update", run: { id: "R1", status: "completed" } as any } as WsMessage);
     expect(useStore.getState().currentTrace!.run.status).toBe("completed");
   });
