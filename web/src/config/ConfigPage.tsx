@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ProjectConfig } from "../types/ProjectConfig";
 import { getConfig, putConfig, importAgent } from "../api/config";
+import { surfaceError } from "../notify/notify";
 
 export function ConfigPage() {
   const [cfg, setCfg] = useState<ProjectConfig | null>(null);
@@ -29,10 +30,14 @@ export function ConfigPage() {
   if (!backends.includes("anthropic")) backends.push("anthropic");
 
   async function onSave() {
-    await putConfig(name, description).catch(() => {});
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-    reload();
+    try {
+      await putConfig(name, description);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      reload();
+    } catch (err) {
+      surfaceError("Failed to save config", err);
+    }
   }
 
   async function onImport() {
