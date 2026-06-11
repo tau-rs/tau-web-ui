@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getProject, listRuns, launchRun, getTrace, cancelRun } from "./client";
+import { getProject, listRuns, launchRun, getTrace, cancelRun, openRunSocket } from "./client";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -53,6 +53,41 @@ describe("api client (project-scoped)", () => {
     vi.stubGlobal("fetch", f);
     await listRuns("demo", { status: "completed" });
     expect(f.mock.calls[0][0]).toBe("/api/projects/demo/runs?status=completed");
+  });
+
+  it("percent-encodes the project id so a slashed pid stays in one path segment", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    await getProject("a/b#c%d");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/a%2Fb%23c%25d/project");
+  });
+
+  it("percent-encodes the run id so it cannot break out of /runs/:id", async () => {
+    mockFetch({ run: { id: "R1" }, spans: [], events: [] });
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ run: {}, spans: [] }) });
+    vi.stubGlobal("fetch", f);
+    await getTrace("demo", "../secret");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/runs/..%2Fsecret");
+  });
+
+  it("percent-encodes the run id in cancelRun", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ cancelled: true }) });
+    vi.stubGlobal("fetch", f);
+    await cancelRun("demo", "a/b");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/runs/a%2Fb/cancel");
+  });
+
+  it("percent-encodes the run id in the live WS url", () => {
+    const urls: string[] = [];
+    class FakeWS {
+      onmessage: ((ev: MessageEvent) => void) | null = null;
+      constructor(url: string) {
+        urls.push(url);
+      }
+    }
+    vi.stubGlobal("WebSocket", FakeWS as unknown as typeof WebSocket);
+    openRunSocket("demo", "a/b", () => {});
+    expect(urls[0]).toContain("/api/projects/demo/runs/a%2Fb/events");
   });
 
   it("scopes each request to its explicit project argument, not a shared default", async () => {

@@ -40,6 +40,27 @@ describe("skills api", () => {
     expect(f.mock.calls[0][1].method).toBe("PUT");
   });
 
+  it("percent-encodes the skill name so a slashed name stays in one path segment", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => skill });
+    vi.stubGlobal("fetch", f);
+    await getSkill("demo", "../../etc");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/skills/..%2F..%2Fetc");
+  });
+
+  it("percent-encodes the skill name in putSkill, before the ?create query", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => skill });
+    vi.stubGlobal("fetch", f);
+    await putSkill("demo", { ...skill, name: "a/b" }, { create: true });
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/skills/a%2Fb?create=1");
+  });
+
+  it("percent-encodes the skill name in deleteSkill", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, status: 204, text: async () => "" });
+    vi.stubGlobal("fetch", f);
+    await deleteSkill("demo", "a%2e");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/skills/a%252e");
+  });
+
   it("deleteSkill DELETEs", async () => {
     const f = vi.fn().mockResolvedValue({ ok: true, status: 204, text: async () => "" });
     vi.stubGlobal("fetch", f);

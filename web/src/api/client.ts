@@ -23,7 +23,7 @@ export interface Trace {
 /** Build a path scoped to project `pid`. The project is always passed
  *  explicitly by the caller — there is no module-level "active project". */
 function scoped(pid: string, path: string): string {
-  return `/api/projects/${pid}${path}`;
+  return `/api/projects/${encodeURIComponent(pid)}${path}`;
 }
 
 async function json<T>(res: Response): Promise<T> {
@@ -71,9 +71,9 @@ export function launchWorkflow(pid: string, workflow: string, input: string): Pr
 }
 
 export const getTrace = (pid: string, id: string) =>
-  fetch(scoped(pid, `/runs/${id}`)).then(json<Trace>);
+  fetch(scoped(pid, `/runs/${encodeURIComponent(id)}`)).then(json<Trace>);
 export const cancelRun = (pid: string, id: string) =>
-  fetch(scoped(pid, `/runs/${id}/cancel`), { method: "POST" })
+  fetch(scoped(pid, `/runs/${encodeURIComponent(id)}/cancel`), { method: "POST" })
     .then(json<{ cancelled: boolean }>)
     .then((r) => r.cancelled);
 
@@ -84,7 +84,9 @@ export function openRunSocket(
   onMessage: (m: WsMessage) => void,
 ): WebSocket {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}${scoped(pid, `/runs/${id}/events`)}`);
+  const ws = new WebSocket(
+    `${proto}://${location.host}${scoped(pid, `/runs/${encodeURIComponent(id)}/events`)}`,
+  );
   ws.onmessage = (ev) => {
     try {
       onMessage(JSON.parse(ev.data) as WsMessage);

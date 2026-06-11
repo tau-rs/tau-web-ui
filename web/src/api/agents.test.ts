@@ -45,6 +45,27 @@ describe("agents api", () => {
     expect(f.mock.calls[0][0]).toBe("/api/projects/demo/agents/writer");
   });
 
+  it("percent-encodes the agent id so a slashed id stays in one path segment", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => agent });
+    vi.stubGlobal("fetch", f);
+    await getAgent("demo", "../etc/passwd");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/agents/..%2Fetc%2Fpasswd");
+  });
+
+  it("percent-encodes the agent id in putAgent, before the ?create query", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => agent });
+    vi.stubGlobal("fetch", f);
+    await putAgent("demo", { ...agent, id: "a/b" }, { create: true });
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/agents/a%2Fb?create=1");
+  });
+
+  it("percent-encodes the agent id in deleteAgent", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, status: 204, text: async () => "" });
+    vi.stubGlobal("fetch", f);
+    await deleteAgent("demo", "a#b");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/agents/a%23b");
+  });
+
   it("deleteAgent DELETEs", async () => {
     const f = vi.fn().mockResolvedValue({ ok: true, status: 204, text: async () => "" });
     vi.stubGlobal("fetch", f);
