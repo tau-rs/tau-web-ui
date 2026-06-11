@@ -120,6 +120,32 @@ describe("store.loadWorkflows", () => {
   });
 });
 
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
+describe("store.refreshRuns in-flight guard", () => {
+  it("dedups overlapping calls so a slow response is not clobbered", async () => {
+    const d = deferred<{ ok: true; json: () => Promise<unknown[]> }>();
+    const fetchMock = vi.fn().mockReturnValue(d.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const s = useStore.getState();
+    const p1 = s.refreshRuns("demo");
+    const p2 = s.refreshRuns("demo"); // called while the first is still in flight
+
+    expect(fetchMock).toHaveBeenCalledTimes(1); // second call did NOT start a new fetch
+
+    d.resolve({ ok: true, json: async () => [{ id: "a" } as never] });
+    await Promise.all([p1, p2]);
+
+    expect(useStore.getState().runs).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+});
+
 describe("store project scope", () => {
   it("setActiveProject records the id", () => {
     useStore.getState().setActiveProject("acme-bot");
