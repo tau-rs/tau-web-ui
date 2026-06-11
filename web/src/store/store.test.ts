@@ -1,7 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { useStore } from "./store";
 import type { WsMessage } from "../types/WsMessage";
 import type { Span } from "../types/Span";
+
+// Safety net: restore real timers and global mocks even if a test throws before
+// its own cleanup. Scheduler tests must still unsubscribe to reset the store's
+// (closure) poller ref-count; this guards the shared vi state between files.
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 function span(id: string, status: Span["status"], name = "x"): Span {
   return {
@@ -126,6 +134,32 @@ describe("store.loadWorkflows", () => {
   });
 });
 
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
+describe("store.refreshRuns in-flight guard", () => {
+  it("dedups overlapping calls so a slow response is not clobbered", async () => {
+    const d = deferred<{ ok: true; json: () => Promise<unknown[]> }>();
+    const fetchMock = vi.fn().mockReturnValue(d.promise);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const s = useStore.getState();
+    const p1 = s.refreshRuns("demo");
+    const p2 = s.refreshRuns("demo"); // called while the first is still in flight
+
+    expect(fetchMock).toHaveBeenCalledTimes(1); // second call did NOT start a new fetch
+
+    d.resolve({ ok: true, json: async () => [{ id: "a" } as never] });
+    await Promise.all([p1, p2]);
+
+    expect(useStore.getState().runs).toHaveLength(1);
+    vi.restoreAllMocks();
+  });
+});
+
 describe("store project scope", () => {
   it("setActiveProject records the id", () => {
     useStore.getState().setActiveProject("acme-bot");
@@ -148,6 +182,73 @@ describe("store project scope", () => {
     await useStore.getState().loadProjects();
     expect(useStore.getState().projects).toHaveLength(1);
     expect(useStore.getState().projects[0].meta.id).toBe("demo");
+    vi.restoreAllMocks();
+  });
+});
+
+const okFetch = () => vi.fn().mockResolvedValue({ ok: true, json: async () => [] as unknown[] });
+const errFetch = () =>
+  vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" });
+
+describe("store.subscribeRuns scheduler", () => {
+  it("two subscribers share one interval (one GET /runs per tick)", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+
+    const s = useStore.getState();
+    const un1 = s.subscribeRuns("demo", 5000);
+    const un2 = s.subscribeRuns("demo", 5000); // 2nd subscriber must NOT start a 2nd timer
+
+    await vi.advanceTimersByTimeAsync(0); // flush the single immediate tick
+    fetchMock.mockClear();
+
+    await vi.advanceTimersByTimeAsync(5000); // one interval
+    expect(fetchMock).toHaveBeenCalledTimes(1); // ONE request, not two
+
+    un1();
+    un2();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("does not poll while the tab is hidden", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+
+    const un = useStore.getState().subscribeRuns("demo", 5000);
+    await vi.advanceTimersByTimeAsync(20000); // 4 intervals, tab hidden the whole time
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    un();
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("backs off on repeated errors instead of polling every interval", async () => {
+    const fetchMock = errFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+
+    const un = useStore.getState().subscribeRuns("demo", 1000); // base 1s
+
+    await vi.advanceTimersByTimeAsync(0); // t=0 immediate tick fails -> next at +2000
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000); // t=1000: no tick (backed off)
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000); // t=2000: tick fails -> next at +4000
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3999); // t=5999: still backed off
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1); // t=6000: third tick
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // base-interval polling would have fired ~7 times by t=6000; backoff fired 3.
+
+    un();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 });
