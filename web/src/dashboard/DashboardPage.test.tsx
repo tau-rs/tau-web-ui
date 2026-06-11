@@ -62,6 +62,6 @@ describe("DashboardPage", () => {
         <DashboardPage />
       </ProjectProvider>,
     );
-    expect(screen.getByText(/no runs yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no runs yet — launch/i)).toBeInTheDocument();
   });
 });
