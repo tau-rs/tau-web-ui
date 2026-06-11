@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   getProject,
   listRuns,
@@ -187,5 +187,76 @@ describe("shared request helper (error normalization in one place)", () => {
     const init = { method: "POST", headers: { "content-type": "application/json" }, body: "{}" };
     await request("/api/thing", init);
     expect(f.mock.calls[0]).toEqual(["/api/thing", init]);
+  });
+});
+
+describe("openRunSocket error paths", () => {
+  class FakeWS {
+    onmessage: ((ev: MessageEvent) => void) | null = null;
+    onclose: ((ev: CloseEvent) => void) | null = null;
+    constructor(public url: string) {}
+    drop() {
+      this.onclose?.({} as CloseEvent);
+    }
+    deliver(data: string) {
+      this.onmessage?.({ data } as MessageEvent);
+    }
+  }
+
+  function stubWs(): { current: FakeWS | null } {
+    const ref: { current: FakeWS | null } = { current: null };
+    vi.stubGlobal(
+      "WebSocket",
+      class extends FakeWS {
+        constructor(url: string) {
+          super(url);
+          ref.current = this;
+        }
+      } as unknown as typeof WebSocket,
+    );
+    return ref;
+  }
+
+  it("reflects a dropped socket to the onClose callback", () => {
+    const ref = stubWs();
+    const onClose = vi.fn();
+    openRunSocket("demo", "R1", () => {}, onClose);
+    expect(ref.current).not.toBeNull();
+    ref.current!.drop();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("swallows a malformed frame without invoking onMessage or throwing", () => {
+    const ref = stubWs();
+    const onMessage = vi.fn();
+    openRunSocket("demo", "R1", onMessage);
+    expect(() => ref.current!.deliver("not json")).not.toThrow();
+    expect(onMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("API root is env-configurable (VITE_API_ROOT)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  it("defaults to /api when VITE_API_ROOT is unset", async () => {
+    vi.resetModules();
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    const { getProject } = await import("./client");
+    await getProject("demo");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo/project");
+  });
+
+  it("an override changes the resolved root for scoped paths", async () => {
+    vi.stubEnv("VITE_API_ROOT", "/gw");
+    vi.resetModules();
+    const f = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", f);
+    const { getProject } = await import("./client");
+    await getProject("demo");
+    expect(f.mock.calls[0][0]).toBe("/gw/projects/demo/project");
   });
 });
