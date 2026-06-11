@@ -1,9 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { surfaceError, notify, useNotifications } from "./notify";
+import { surfaceError, notify, useNotifications, errorMessage } from "./notify";
 
 beforeEach(() => {
   useNotifications.setState({ items: [] });
   vi.restoreAllMocks();
+});
+
+describe("errorMessage", () => {
+  it("returns the message of an Error", () => {
+    expect(errorMessage(new Error("boom"))).toBe("boom");
+  });
+  it("stringifies non-Error values", () => {
+    expect(errorMessage("plain")).toBe("plain");
+    expect(errorMessage(503)).toBe("503");
+  });
 });
 
 describe("surfaceError", () => {

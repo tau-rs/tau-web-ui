@@ -27,12 +27,16 @@ export function notify(kind: NotifyKind, message: string): void {
   useNotifications.getState().push(kind, message);
 }
 
+/** Extract a human-readable message from any thrown value. */
+export function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Surface a failed operation: log it for diagnostics AND show the user a toast.
  * The shared replacement for silent `.catch(() => {})` sites.
  */
 export function surfaceError(context: string, err: unknown): void {
-  const detail = err instanceof Error ? err.message : String(err);
   console.error(`${context}:`, err);
-  notify("error", `${context}: ${detail}`);
+  notify("error", `${context}: ${errorMessage(err)}`);
 }
