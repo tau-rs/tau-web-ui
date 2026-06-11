@@ -7,16 +7,24 @@ name: CI
 # e2e) either SUCCEEDED or was legitimately SKIPPED — never green while
 # a job failed or was cancelled (fail-closed gating).
 #
+# MERGE QUEUE
+# -----------
+# `merge_group` runs the full suite on the queue's temporary branch so
+# `ci-summary` reports there — required for the merge queue to dequeue
+# and merge a PR. Without this trigger, queued PRs hang forever waiting
+# on a check that never runs.
+#
 # DOCS-ONLY PRs
 # -------------
 # The `changes` job decides whether any non-docs file changed. On a
 # pull request, the heavy jobs gate on its `code` output, so a docs/
 # markdown-only PR skips rust/web/e2e while `changes` + `ci-summary`
-# still run and report green. Pushes to `main` always run the full
-# suite (fail-closed on the protected branch, independent of paths-
-# filter's push-diff base resolution). (Workflow-level `paths-ignore`
-# is intentionally NOT used: it would skip `ci-summary` too and leave
-# the required check stuck "pending" forever.)
+# still run and report green. Pushes to `main` and `merge_group` runs
+# always run the full suite (fail-closed on the protected branch,
+# independent of paths-filter's push-diff base resolution). (Workflow-
+# level `paths-ignore` is intentionally NOT used: it would skip
+# `ci-summary` too and leave the required check stuck "pending"
+# forever.)
 #
 # CACHE INTEGRITY
 # ---------------
@@ -28,6 +36,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  merge_group:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -45,8 +54,16 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
     steps:
+      # The paths-filter only powers the docs-only PR optimization. On
+      # push to main and in the merge queue (merge_group) the heavy jobs
+      # run unconditionally, so the filter is skipped there — its push-diff
+      # base is unreliable on the queue's temporary branch. The job itself
+      # still succeeds (empty `code` output), so downstream `needs: changes`
+      # jobs are not skipped.
       - uses: actions/checkout@v6
+        if: ${{ github.event_name == 'pull_request' }}
       - uses: dorny/paths-filter@v4
+        if: ${{ github.event_name == 'pull_request' }}
         id: filter
         with:
           filters: |

@@ -6,6 +6,7 @@ pub mod checks;
 pub mod config;
 pub mod credentials;
 pub mod graph;
+pub mod guard;
 pub mod meta;
 pub mod packages;
 pub mod plugins;
@@ -21,6 +22,7 @@ pub mod ws;
 
 use crate::projects::ProjectRegistry;
 use axum::{
+    middleware,
     routing::{delete, get, post, put},
     Router,
 };
@@ -77,4 +79,7 @@ pub fn router(reg: ProjectRegistry) -> Router {
         )
         .nest("/api/projects/{pid}", scoped)
         .with_state(reg)
+        // Outermost layer: runs before routing/extractors, so it guards every
+        // HTTP route and the WS upgrade against CSRF / DNS-rebinding (audit S1).
+        .layer(middleware::from_fn(guard::loopback_guard))
 }
