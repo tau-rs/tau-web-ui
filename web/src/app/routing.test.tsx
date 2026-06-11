@@ -12,6 +12,7 @@ beforeEach(() =>
   useStore.setState({
     currentTrace: null,
     runs: [],
+    runsLoaded: true,
     projects: [
       {
         meta: { id: "demo", name: "demo", path: "/p", source: { kind: "local" } },

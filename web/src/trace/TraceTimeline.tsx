@@ -50,10 +50,22 @@ export function TraceTimeline({ spans }: { spans: Span[] }) {
       {rows
         .filter((r) => !hidden(r.span.id))
         .map((r) => (
+          // The expand/collapse <button> nested below is a focusable descendant
+          // of this role="button" row; it keeps its own keyboard handling and
+          // stopPropagation, so the two activations don't collide.
           <div
             key={r.span.id}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select span ${r.span.name}`}
             onClick={() => select(r.span.id)}
-            className={`flex cursor-pointer items-center border-b border-border/60 px-3 py-1.5 hover:bg-bg ${
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                select(r.span.id);
+              }
+            }}
+            className={`flex cursor-pointer items-center border-b border-border/60 px-3 py-1.5 hover:bg-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
               selectedId === r.span.id ? "bg-accent/10" : ""
             }`}
           >

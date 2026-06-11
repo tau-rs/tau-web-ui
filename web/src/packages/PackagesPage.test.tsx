@@ -55,4 +55,48 @@ describe("PackagesPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Install" }));
     await waitFor(() => expect(screen.getByText("cooltool")).toBeInTheDocument());
   });
+
+  it("does not render a failed/drift package status in the success tone", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/packages/verify"))
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ results: [{ name: "anthropic", status: "drift" }] }),
+          });
+        if (url.includes("/packages"))
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              packages: [
+                {
+                  name: "anthropic",
+                  version: "0.1.0",
+                  source: "github.com/tau/anthropic",
+                  scope: "project",
+                  version_count: 1,
+                },
+              ],
+            }),
+          });
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      }),
+    );
+    render(
+      <ProjectProvider pid="demo">
+        <PackagesPage />
+      </ProjectProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("anthropic")).toBeInTheDocument());
+    // Before verify runs, the "—" placeholder means "not verified yet" — it must
+    // be neutral, never borrow the success green.
+    const placeholder = screen.getByText("—");
+    expect(placeholder.className).not.toContain("text-st-ok");
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    const drift = await screen.findByText("drift");
+    // A drift/failed/stale status is not a success and must not render green.
+    expect(drift.className).toContain("text-st-error");
+    expect(drift.className).not.toContain("text-st-ok");
+  });
 });

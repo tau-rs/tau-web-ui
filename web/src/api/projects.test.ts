@@ -45,4 +45,11 @@ describe("projects api", () => {
     expect(f.mock.calls[0][0]).toBe("/api/projects/demo");
     expect(f.mock.calls[0][1].method).toBe("DELETE");
   });
+
+  it("removeProject percent-encodes the project id so it stays in one path segment", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true, status: 204, text: async () => "" });
+    vi.stubGlobal("fetch", f);
+    await removeProject("demo/../other");
+    expect(f.mock.calls[0][0]).toBe("/api/projects/demo%2F..%2Fother");
+  });
 });
