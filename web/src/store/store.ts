@@ -18,6 +18,7 @@ import {
 } from "../api/client";
 import { listProjects } from "../api/projects";
 import type { ProjectListItem } from "../types/ProjectListItem";
+import { errorMessage } from "../notify/notify";
 
 interface TraceState {
   run: Run;
@@ -26,8 +27,12 @@ interface TraceState {
 
 interface AppStore {
   health: Health | null;
+  healthError: string | null;
+  healthCheckedAt: number | null;
   project: Project | null;
   runs: Run[];
+  runsLoaded: boolean;
+  runsError: string | null;
   workflows: string[];
   currentTrace: TraceState | null;
   assistantText: string;
@@ -60,8 +65,12 @@ function assistantTextFromEvents(events?: Event[]): string {
 
 export const useStore = create<AppStore>((set, get) => ({
   health: null,
+  healthError: null,
+  healthCheckedAt: null,
   project: null,
   runs: [],
+  runsLoaded: false,
+  runsError: null,
   workflows: [],
   currentTrace: null,
   assistantText: "",
@@ -72,9 +81,10 @@ export const useStore = create<AppStore>((set, get) => ({
 
   loadHealth: async (pid) => {
     try {
-      set({ health: await getHealth(pid) });
-    } catch {
-      /* gateway unreachable — leave health null */
+      set({ health: await getHealth(pid), healthError: null, healthCheckedAt: Date.now() });
+    } catch (e) {
+      // Keep the last snapshot + contact time; record why the latest contact failed.
+      set({ healthError: errorMessage(e) });
     }
   },
   loadProject: async (pid) => set({ project: await getProject(pid) }),
@@ -88,7 +98,15 @@ export const useStore = create<AppStore>((set, get) => ({
     }
   },
 
-  refreshRuns: async (pid, filters) => set({ runs: await listRuns(pid, filters) }),
+  refreshRuns: async (pid, filters) => {
+    try {
+      set({ runs: await listRuns(pid, filters), runsLoaded: true, runsError: null });
+    } catch (e) {
+      // Record status for first-load UI, but preserve the throw-and-caller-catch contract.
+      set({ runsLoaded: true, runsError: errorMessage(e) });
+      throw e;
+    }
+  },
 
   launch: async (pid, agent, prompt) => {
     const id = await launchRun(pid, agent, prompt);
