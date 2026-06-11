@@ -48,6 +48,7 @@ permissions:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
@@ -76,20 +77,26 @@ jobs:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: cargo-deny (advisories + licenses + bans + sources per deny.toml)
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          arguments: --all-features
       - name: rustfmt
         run: cargo fmt --all -- --check
       - name: clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: build (workspace bins incl. fake-tau-serve)
-        run: cargo build --workspace
+        run: cargo build --workspace --locked
       - name: test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
       - name: ts-rs type-gen drift gate
         run: |
           if ! git diff --quiet -- web/src/types; then
@@ -103,6 +110,7 @@ jobs:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
@@ -128,12 +136,13 @@ jobs:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: build gateway + mock
-        run: cargo build --workspace
+        run: cargo build --workspace --locked
       - uses: pnpm/action-setup@v6
         with:
           version: 10
@@ -165,6 +174,7 @@ jobs:
     needs: [changes, rust, web, e2e]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
