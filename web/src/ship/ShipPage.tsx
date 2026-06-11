@@ -3,6 +3,7 @@ import type { Target } from "../types/Target";
 import type { Bundle } from "../types/Bundle";
 import type { VerifyOutcome } from "../types/VerifyOutcome";
 import { listTargets, listBundles, build, verifyBundle } from "../api/ship";
+import { useProjectId } from "../app/project-context";
 
 function humanSize(bytes: number | bigint): string {
   // ts-rs exports the Rust `u64` `size_bytes` as `bigint`; coerce to number.
@@ -19,6 +20,7 @@ function shortHash(hash: string): string {
 }
 
 export function ShipPage() {
+  const pid = useProjectId();
   const [targets, setTargets] = useState<Target[]>([]);
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [target, setTarget] = useState("");
@@ -28,22 +30,22 @@ export function ShipPage() {
   const [verifyResult, setVerifyResult] = useState<Record<string, VerifyOutcome>>({});
 
   useEffect(() => {
-    listTargets()
+    listTargets(pid)
       .then((t) => {
         setTargets(t);
         setTarget((cur) => cur || t.find((x) => x.status === "available")?.triple || "");
       })
       .catch(() => {});
-    listBundles()
+    listBundles(pid)
       .then(setBundles)
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   async function onBuild() {
     if (!target) return;
     setBuilding(true);
     try {
-      const b = await build(target);
+      const b = await build(pid, target);
       setLastBuild(b);
       setBundles((prev) => [b, ...prev]);
     } catch {
@@ -56,7 +58,7 @@ export function ShipPage() {
   async function onVerify(path: string) {
     setVerifying(path);
     try {
-      const v = await verifyBundle(path);
+      const v = await verifyBundle(pid, path);
       setVerifyResult((p) => ({ ...p, [path]: v }));
     } catch {
       /* surface nothing on the mock */

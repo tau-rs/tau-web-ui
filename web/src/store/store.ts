@@ -13,7 +13,6 @@ import {
   cancelRun,
   openRunSocket,
   getHealth,
-  setActiveProject as clientSetActiveProject,
   type Project,
   type Health,
 } from "../api/client";
@@ -39,15 +38,15 @@ interface AppStore {
   setActiveProject: (pid: string) => void;
   loadProjects: () => Promise<void>;
 
-  loadHealth: () => Promise<void>;
-  loadProject: () => Promise<void>;
-  refreshRuns: (filters?: { status?: string; agent?: string }) => Promise<void>;
-  launch: (agent: string, prompt: string) => Promise<string>;
-  loadWorkflows: () => Promise<void>;
-  launchWorkflow: (workflow: string, input: string) => Promise<string>;
-  openTrace: (id: string) => Promise<void>;
+  loadHealth: (pid: string) => Promise<void>;
+  loadProject: (pid: string) => Promise<void>;
+  refreshRuns: (pid: string, filters?: { status?: string; agent?: string }) => Promise<void>;
+  launch: (pid: string, agent: string, prompt: string) => Promise<string>;
+  loadWorkflows: (pid: string) => Promise<void>;
+  launchWorkflow: (pid: string, workflow: string, input: string) => Promise<string>;
+  openTrace: (pid: string, id: string) => Promise<void>;
   closeTrace: () => void;
-  cancelCurrent: () => Promise<void>;
+  cancelCurrent: (pid: string) => Promise<void>;
   selectSpan: (id: string | null) => void;
   applyWs: (m: WsMessage) => void;
 }
@@ -71,19 +70,16 @@ export const useStore = create<AppStore>((set, get) => ({
   activeProjectId: "",
   projects: [],
 
-  loadHealth: async () => {
+  loadHealth: async (pid) => {
     try {
-      set({ health: await getHealth() });
+      set({ health: await getHealth(pid) });
     } catch {
       /* gateway unreachable — leave health null */
     }
   },
-  loadProject: async () => set({ project: await getProject() }),
+  loadProject: async (pid) => set({ project: await getProject(pid) }),
 
-  setActiveProject: (pid) => {
-    clientSetActiveProject(pid);
-    set({ activeProjectId: pid });
-  },
+  setActiveProject: (pid) => set({ activeProjectId: pid }),
   loadProjects: async () => {
     try {
       set({ projects: await listProjects() });
@@ -92,31 +88,31 @@ export const useStore = create<AppStore>((set, get) => ({
     }
   },
 
-  refreshRuns: async (filters) => set({ runs: await listRuns(filters) }),
+  refreshRuns: async (pid, filters) => set({ runs: await listRuns(pid, filters) }),
 
-  launch: async (agent, prompt) => {
-    const id = await launchRun(agent, prompt);
-    await get().refreshRuns();
+  launch: async (pid, agent, prompt) => {
+    const id = await launchRun(pid, agent, prompt);
+    await get().refreshRuns(pid);
     return id;
   },
 
-  loadWorkflows: async () => {
+  loadWorkflows: async (pid) => {
     try {
-      set({ workflows: await getWorkflows() });
+      set({ workflows: await getWorkflows(pid) });
     } catch {
       /* ignore */
     }
   },
-  launchWorkflow: async (workflow, input) => {
-    const id = await launchWorkflow(workflow, input);
-    await get().refreshRuns();
+  launchWorkflow: async (pid, workflow, input) => {
+    const id = await launchWorkflow(pid, workflow, input);
+    await get().refreshRuns(pid);
     return id;
   },
 
-  openTrace: async (id) => {
+  openTrace: async (pid, id) => {
     get().socket?.close();
     // Replay snapshot first (works even with no live engine — AC#5).
-    const trace = await getTrace(id);
+    const trace = await getTrace(pid, id);
     set({
       currentTrace: { run: trace.run, spans: trace.spans },
       assistantText: assistantTextFromEvents(trace.events),
@@ -124,7 +120,7 @@ export const useStore = create<AppStore>((set, get) => ({
     });
     // If still running, attach live WS (snapshot from WS is idempotent with the REST one).
     if (trace.run.status === "running") {
-      const ws = openRunSocket(id, (m) => get().applyWs(m));
+      const ws = openRunSocket(pid, id, (m) => get().applyWs(m));
       set({ socket: ws });
     } else {
       set({ socket: null });
@@ -136,9 +132,9 @@ export const useStore = create<AppStore>((set, get) => ({
     set({ socket: null, currentTrace: null, assistantText: "" });
   },
 
-  cancelCurrent: async () => {
+  cancelCurrent: async (pid) => {
     const id = get().currentTrace?.run.id;
-    if (id) await cancelRun(id);
+    if (id) await cancelRun(pid, id);
   },
 
   selectSpan: (id) => set({ selectedSpanId: id }),

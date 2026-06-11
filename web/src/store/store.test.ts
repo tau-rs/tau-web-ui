@@ -102,7 +102,7 @@ describe("store.loadHealth", () => {
         }),
       }),
     );
-    await useStore.getState().loadHealth();
+    await useStore.getState().loadHealth("demo");
     expect(useStore.getState().health?.tau_version).toBe("0.0.0-mock");
     vi.restoreAllMocks();
   });
@@ -114,7 +114,7 @@ describe("store.loadWorkflows", () => {
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, json: async () => ({ workflows: ["wf-a", "wf-b"] }) }),
     );
-    await useStore.getState().loadWorkflows();
+    await useStore.getState().loadWorkflows("demo");
     expect(useStore.getState().workflows).toEqual(["wf-a", "wf-b"]);
     vi.restoreAllMocks();
   });

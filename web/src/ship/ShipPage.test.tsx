@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ShipPage } from "./ShipPage";
+import { ProjectProvider } from "../app/project-context";
 
 const shapes = ["fs.r", "fs.w", "exec", "net.http"];
 const targets = [
@@ -51,7 +52,11 @@ beforeEach(() => {
 
 describe("ShipPage", () => {
   it("renders targets + bundles; reserved target is not buildable", async () => {
-    render(<ShipPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <ShipPage />
+      </ProjectProvider>,
+    );
     // target cards rendered — the reserved card shows its status text
     await waitFor(() => expect(screen.getByText(/reserved/)).toBeInTheDocument());
     // the seeded bundle shows its short hash (first 8 of the sha256 hex)
@@ -64,7 +69,11 @@ describe("ShipPage", () => {
 
   it("builds and prepends the new bundle", async () => {
     const user = userEvent.setup();
-    render(<ShipPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <ShipPage />
+      </ProjectProvider>,
+    );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /^build$/i })).toBeInTheDocument(),
     );

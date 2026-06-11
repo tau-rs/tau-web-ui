@@ -25,8 +25,10 @@ import {
 import type { GraphActions } from "./GraphActions";
 import { StepPalette } from "./StepPalette";
 import { listAgents } from "../api/agents";
+import { useProjectId } from "../app/project-context";
 
 export function GraphEditor() {
+  const pid = useProjectId();
   const [workflows, setWorkflows] = useState<string[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [nodes, setNodes] = useState<Node<StepNodeData>[]>([]);
@@ -36,10 +38,10 @@ export function GraphEditor() {
 
   const [recommended, setRecommended] = useState<string>("");
   useEffect(() => {
-    getProviders()
+    getProviders(pid)
       .then((ps) => setRecommended(ps.find((p) => p.recommended)?.name ?? ""))
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   const [agents, setAgents] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -51,23 +53,23 @@ export function GraphEditor() {
   } | null>(null);
 
   useEffect(() => {
-    listAgents()
+    listAgents(pid)
       .then((as) => setAgents(as.map((a) => a.id)))
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   useEffect(() => {
-    getWorkflows()
+    getWorkflows(pid)
       .then((ws) => {
         setWorkflows(ws);
         setSelected((cur) => cur || ws[0] || "");
       })
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   useEffect(() => {
     if (!selected) return;
-    getWorkflowGraph(selected)
+    getWorkflowGraph(pid, selected)
       .then((g: WorkflowGraph) => {
         const flow = workflowToFlow(g);
         setNodes(flow.nodes);
@@ -76,7 +78,7 @@ export function GraphEditor() {
         setEdit(false);
       })
       .catch(() => {});
-  }, [selected]);
+  }, [selected, pid]);
 
   const onNodesChange = useCallback(
     (c: NodeChange[]) => setNodes((ns) => applyNodeChanges(c, ns) as Node<StepNodeData>[]),

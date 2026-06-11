@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HealthPage } from "./HealthPage";
+import { ProjectProvider } from "../app/project-context";
 
 const report = {
   categories: [
@@ -38,7 +39,11 @@ beforeEach(() => {
 
 describe("HealthPage", () => {
   it("renders category chips + findings, gated conformance present", async () => {
-    render(<HealthPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <HealthPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("tau.config.endpoint")).toBeInTheDocument());
     expect(screen.getByText("inference.endpoint not set")).toBeInTheDocument();
     expect(
@@ -51,7 +56,11 @@ describe("HealthPage", () => {
 
   it("filters the findings table by category chip", async () => {
     const user = userEvent.setup();
-    render(<HealthPage />);
+    render(
+      <ProjectProvider pid="demo">
+        <HealthPage />
+      </ProjectProvider>,
+    );
     await waitFor(() => expect(screen.getByText("tau.config.endpoint")).toBeInTheDocument());
     expect(screen.getByText("tau.lockfile.missing")).toBeInTheDocument();
     // filter to lockfile → config finding disappears

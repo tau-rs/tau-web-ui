@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Package } from "../types/Package";
 import {
   getPackages,
@@ -8,28 +8,33 @@ import {
   resolvePackages,
   verifyPackages,
 } from "../api/config";
+import { useProjectId } from "../app/project-context";
 
 export function PackagesPage() {
+  const pid = useProjectId();
   const [pkgs, setPkgs] = useState<Package[]>([]);
   const [url, setUrl] = useState("");
   const [status, setStatus] = useState<Record<string, string>>({});
 
-  const reload = () =>
-    getPackages()
-      .then(setPkgs)
-      .catch(() => {});
+  const reload = useCallback(
+    () =>
+      getPackages(pid)
+        .then(setPkgs)
+        .catch(() => {}),
+    [pid],
+  );
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   async function onInstall() {
     if (!url.trim()) return;
-    await installPackage(url).catch(() => {});
+    await installPackage(pid, url).catch(() => {});
     setUrl("");
     reload();
   }
   async function onVerify() {
-    const results = await verifyPackages().catch(() => []);
+    const results = await verifyPackages(pid).catch(() => []);
     setStatus(Object.fromEntries(results.map((r) => [r.name, r.status])));
   }
 
@@ -54,7 +59,7 @@ export function PackagesPage() {
         </button>
         <button
           onClick={() =>
-            resolvePackages()
+            resolvePackages(pid)
               .then(setPkgs)
               .catch(() => {})
           }
@@ -97,7 +102,7 @@ export function PackagesPage() {
                   <span className="flex gap-2">
                     <button
                       onClick={() =>
-                        updatePackage(p.name)
+                        updatePackage(pid, p.name)
                           .then(reload)
                           .catch(() => {})
                       }
@@ -107,7 +112,7 @@ export function PackagesPage() {
                     </button>
                     <button
                       onClick={() =>
-                        uninstallPackage(p.name)
+                        uninstallPackage(pid, p.name)
                           .then(reload)
                           .catch(() => {})
                       }

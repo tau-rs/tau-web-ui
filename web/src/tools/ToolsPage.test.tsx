@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { ToolsPage } from "./ToolsPage";
+import { ProjectProvider } from "../app/project-context";
 
 beforeEach(() => {
   // both SkillsIndex and ToolsTab fetch on mount — stub to empty arrays
@@ -11,11 +12,13 @@ beforeEach(() => {
 
 function renderAt() {
   render(
-    <MemoryRouter initialEntries={["/projects/demo/tools"]}>
-      <Routes>
-        <Route path="/projects/:pid/tools" element={<ToolsPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ProjectProvider pid="demo">
+      <MemoryRouter initialEntries={["/projects/demo/tools"]}>
+        <Routes>
+          <Route path="/projects/:pid/tools" element={<ToolsPage />} />
+        </Routes>
+      </MemoryRouter>
+    </ProjectProvider>,
   );
 }
 

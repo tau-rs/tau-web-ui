@@ -6,18 +6,20 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const listAgents = () => fetch(scopedPath("/agents")).then(json<AgentDetail[]>);
+export const listAgents = (pid: string) =>
+  fetch(scopedPath(pid, "/agents")).then(json<AgentDetail[]>);
 
-export const getAgent = (id: string) => fetch(scopedPath(`/agents/${id}`)).then(json<AgentDetail>);
+export const getAgent = (pid: string, id: string) =>
+  fetch(scopedPath(pid, `/agents/${id}`)).then(json<AgentDetail>);
 
-export const putAgent = (agent: AgentDetail, opts?: { create?: boolean }) =>
-  fetch(scopedPath(`/agents/${agent.id}${opts?.create ? "?create=1" : ""}`), {
+export const putAgent = (pid: string, agent: AgentDetail, opts?: { create?: boolean }) =>
+  fetch(scopedPath(pid, `/agents/${agent.id}${opts?.create ? "?create=1" : ""}`), {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(agent),
   }).then(json<AgentDetail>);
 
-export const deleteAgent = (id: string) =>
-  fetch(scopedPath(`/agents/${id}`), { method: "DELETE" }).then((res) => {
+export const deleteAgent = (pid: string, id: string) =>
+  fetch(scopedPath(pid, `/agents/${id}`), { method: "DELETE" }).then((res) => {
     if (!res.ok) throw new Error(`${res.status}`);
   });

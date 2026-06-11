@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AgentsIndexPage } from "./AgentsIndexPage";
+import { ProjectProvider } from "../app/project-context";
 
 const agents = [
   {
@@ -28,11 +29,13 @@ beforeEach(() => {
 
 function renderAt() {
   render(
-    <MemoryRouter initialEntries={["/projects/demo/agents"]}>
-      <Routes>
-        <Route path="/projects/:pid/agents" element={<AgentsIndexPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ProjectProvider pid="demo">
+      <MemoryRouter initialEntries={["/projects/demo/agents"]}>
+        <Routes>
+          <Route path="/projects/:pid/agents" element={<AgentsIndexPage />} />
+        </Routes>
+      </MemoryRouter>
+    </ProjectProvider>,
   );
 }
 

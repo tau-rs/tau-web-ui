@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import type { ToolDetail } from "../types/ToolDetail";
 import { listTools } from "../api/tools";
+import { useProjectId } from "../app/project-context";
 
 const MAX_CHIPS = 6;
 
 export function ToolsTab() {
+  const pid = useProjectId();
   const [tools, setTools] = useState<ToolDetail[]>([]);
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    listTools()
+    listTools(pid)
       .then(setTools)
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   function toggle(name: string) {
     setOpen((prev) => {

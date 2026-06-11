@@ -1,33 +1,41 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import type { Provider } from "../types/Provider";
 import type { BackendCredentialStatus } from "../types/BackendCredentialStatus";
 import { getProviders } from "../api/providers";
 import { installPackage } from "../api/config";
 import { getCredentials } from "../api/credentials";
+import { useProjectId } from "../app/project-context";
 import { CredentialChainEditor } from "./CredentialChainEditor";
 
 export function ProvidersPage() {
+  const pid = useProjectId();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [creds, setCreds] = useState<Record<string, BackendCredentialStatus>>({});
   const [url, setUrl] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const reloadProviders = () =>
-    getProviders()
-      .then(setProviders)
-      .catch(() => {});
-  const reloadCreds = () =>
-    getCredentials()
-      .then((cs) => setCreds(Object.fromEntries(cs.map((c) => [c.backend, c]))))
-      .catch(() => {});
+  const reloadProviders = useCallback(
+    () =>
+      getProviders(pid)
+        .then(setProviders)
+        .catch(() => {}),
+    [pid],
+  );
+  const reloadCreds = useCallback(
+    () =>
+      getCredentials()
+        .then((cs) => setCreds(Object.fromEntries(cs.map((c) => [c.backend, c]))))
+        .catch(() => {}),
+    [],
+  );
   useEffect(() => {
     reloadProviders();
     reloadCreds();
-  }, []);
+  }, [reloadProviders, reloadCreds]);
 
   async function onAdd() {
     if (!url.trim()) return;
-    await installPackage(url).catch(() => {});
+    await installPackage(pid, url).catch(() => {});
     setUrl("");
     reloadProviders();
   }

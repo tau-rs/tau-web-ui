@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { ProjectConfig } from "../types/ProjectConfig";
 import { getConfig, putConfig, importAgent } from "../api/config";
+import { useProjectId } from "../app/project-context";
 import { surfaceError } from "../notify/notify";
 
 export function ConfigPage() {
+  const pid = useProjectId();
   const [cfg, setCfg] = useState<ProjectConfig | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -11,18 +13,21 @@ export function ConfigPage() {
   const [importUrl, setImportUrl] = useState("");
   const [importBackend, setImportBackend] = useState("anthropic");
 
-  const reload = () =>
-    getConfig()
-      .then((c) => {
-        setCfg(c);
-        setName(c.name);
-        setDescription(c.description ?? "");
-      })
-      .catch(() => {});
+  const reload = useCallback(
+    () =>
+      getConfig(pid)
+        .then((c) => {
+          setCfg(c);
+          setName(c.name);
+          setDescription(c.description ?? "");
+        })
+        .catch(() => {}),
+    [pid],
+  );
 
   useEffect(() => {
     reload();
-  }, []);
+  }, [reload]);
 
   const backends = Array.from(
     new Set((cfg?.agents ?? []).map((a) => a.llm_backend).filter(Boolean) as string[]),
@@ -31,7 +36,7 @@ export function ConfigPage() {
 
   async function onSave() {
     try {
-      await putConfig(name, description);
+      await putConfig(pid, name, description);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       reload();
@@ -42,7 +47,7 @@ export function ConfigPage() {
 
   async function onImport() {
     if (!importUrl.trim()) return;
-    await importAgent(importUrl, importBackend).catch(() => {});
+    await importAgent(pid, importUrl, importBackend).catch(() => {});
     setImportUrl("");
     reload();
   }

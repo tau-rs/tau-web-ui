@@ -3,22 +3,23 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { SkillEditorPage } from "./SkillEditorPage";
-import { setActiveProject } from "../api/client";
+import { ProjectProvider } from "../app/project-context";
 
 function renderAt(path: string) {
   render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/projects/:pid/tools/skills/new" element={<SkillEditorPage />} />
-        <Route path="/projects/:pid/tools/skills/:name" element={<SkillEditorPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ProjectProvider pid="demo">
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/projects/:pid/tools/skills/new" element={<SkillEditorPage />} />
+          <Route path="/projects/:pid/tools/skills/:name" element={<SkillEditorPage />} />
+        </Routes>
+      </MemoryRouter>
+    </ProjectProvider>,
   );
 }
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  setActiveProject("demo");
 });
 
 describe("SkillEditorPage", () => {

@@ -6,4 +6,5 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const getProviders = () => fetch(scopedPath("/providers")).then(json<Provider[]>);
+export const getProviders = (pid: string) =>
+  fetch(scopedPath(pid, "/providers")).then(json<Provider[]>);

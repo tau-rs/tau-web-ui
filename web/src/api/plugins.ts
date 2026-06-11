@@ -6,4 +6,5 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const listPlugins = () => fetch(scopedPath("/plugins")).then(json<PluginDetail[]>);
+export const listPlugins = (pid: string) =>
+  fetch(scopedPath(pid, "/plugins")).then(json<PluginDetail[]>);

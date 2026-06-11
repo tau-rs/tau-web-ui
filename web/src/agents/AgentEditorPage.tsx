@@ -5,6 +5,7 @@ import type { AgentPrompt } from "../types/AgentPrompt";
 import type { Provider } from "../types/Provider";
 import { getAgent, putAgent, deleteAgent } from "../api/agents";
 import { getProviders } from "../api/providers";
+import { useProjectId } from "../app/project-context";
 import { PromptField } from "./PromptField";
 import { RequiresToolsEditor } from "./RequiresToolsEditor";
 
@@ -20,7 +21,8 @@ const blank = (): AgentDetail => ({
 });
 
 export function AgentEditorPage() {
-  const { pid, agentId } = useParams();
+  const { agentId } = useParams();
+  const pid = useProjectId();
   const isNew = agentId === undefined; // route /agents/new has no :agentId
   const navigate = useNavigate();
 
@@ -30,19 +32,19 @@ export function AgentEditorPage() {
 
   useEffect(() => {
     if (isNew || !agentId) return;
-    getAgent(agentId)
+    getAgent(pid, agentId)
       .then((d) => {
         setA({ ...blank(), ...d, requires_tools: d.requires_tools ?? [] });
         setPromptMode(d.prompt.system_file ? "file" : "system");
       })
       .catch(() => setError("could not load agent"));
-  }, [isNew, agentId]);
+  }, [isNew, agentId, pid]);
 
   const [providers, setProviders] = useState<Provider[]>([]);
   const recommended = providers.find((p) => p.recommended)?.name ?? "";
 
   useEffect(() => {
-    getProviders()
+    getProviders(pid)
       .then((ps) => {
         if (!Array.isArray(ps)) return;
         setProviders(ps);
@@ -52,7 +54,7 @@ export function AgentEditorPage() {
         }
       })
       .catch(() => {});
-  }, [isNew]);
+  }, [isNew, pid]);
 
   const label = "mb-1 block text-[10px] uppercase tracking-wide text-muted";
   const input = "w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs";
@@ -77,7 +79,7 @@ export function AgentEditorPage() {
       requires_tools: a.requires_tools.filter((t) => t.name.trim() && t.source.trim()),
     };
     try {
-      await putAgent(payload, { create: isNew });
+      await putAgent(pid, payload, { create: isNew });
       navigate(`/projects/${pid}/agents/${id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "save failed");
@@ -87,7 +89,7 @@ export function AgentEditorPage() {
   async function onDelete() {
     if (isNew || !agentId) return;
     try {
-      await deleteAgent(agentId);
+      await deleteAgent(pid, agentId);
       navigate(`/projects/${pid}/agents`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "delete failed");

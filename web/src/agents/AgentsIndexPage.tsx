@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { AgentDetail } from "../types/AgentDetail";
 import { listAgents } from "../api/agents";
+import { useProjectId } from "../app/project-context";
 
 export function AgentsIndexPage() {
-  const { pid } = useParams();
+  const pid = useProjectId();
   const [agents, setAgents] = useState<AgentDetail[]>([]);
 
   useEffect(() => {
-    listAgents()
+    listAgents(pid)
       .then(setAgents)
       .catch(() => {});
-  }, []);
+  }, [pid]);
 
   return (
     <div className="space-y-3 p-4">
