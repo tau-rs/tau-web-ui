@@ -1,0 +1,109 @@
+name: Mutation testing (T3)
+
+# T3 — weekly mutation testing.
+#
+# Mutation testing complements the unit/e2e suites by mutating production
+# code and checking that at least one test catches each mutation — an
+# objective test-gap report. A full run is slow, so it runs weekly (off-
+# peak) + on manual workflow_dispatch. NEVER on pull_request / merge_group.
+#
+#   gateway  -> cargo-mutants (-p tau-gateway)
+#   web      -> Stryker (vitest runner; config in web/stryker.conf.json)
+#
+# Each job uploads its missed-mutant report as an artifact.
+
+on:
+  schedule:
+    - cron: '0 6 * * 0' # 06:00 UTC Sunday, off-peak
+  workflow_dispatch:
+    inputs:
+      mutants_timeout_seconds:
+        description: 'cargo-mutants per-mutant timeout in seconds (default 120)'
+        type: string
+        required: false
+        default: '120'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Singleton across schedule + manual dispatch; a manual run shouldn't kill
+  # the scheduled run mid-flight.
+  group: mutation
+  cancel-in-progress: false
+
+jobs:
+  cargo-mutants:
+    name: cargo-mutants (tau-gateway)
+    runs-on: ubuntu-latest
+    # cargo-mutants reruns the suite once per mutant — generous budget so a
+    # slow run doesn't time out half-way.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          save-if: 'false'
+      - uses: taiki-e/install-action@7a79fe8c3a13344501c80d99cae481c1c9085912 # v2
+        with:
+          tool: cargo-mutants
+      - name: run cargo-mutants on the gateway
+        env:
+          MUTANTS_TIMEOUT: ${{ inputs.mutants_timeout_seconds || '120' }}
+        run: |
+          set -euo pipefail
+          # --in-place reuses the workspace tree (runner is throwaway);
+          # --no-shuffle keeps the missed-list diff-friendly week over week.
+          cargo mutants \
+            --in-place \
+            -p tau-gateway \
+            --timeout "$MUTANTS_TIMEOUT" \
+            --no-shuffle
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: cargo-mutants-report-${{ github.run_id }}
+          path: mutants.out/
+          if-no-files-found: ignore
+          retention-days: 90
+
+  stryker:
+    name: stryker (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
+        with:
+          version: 10
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: install Stryker (ephemeral — kept OUT of the committed manifest)
+        # Stryker is NOT a committed devDependency: doing so would drag a
+        # transitive `qs` advisory into the T1 `pnpm audit` gate and break the
+        # PR path. Installing it into the project node_modules here (rather
+        # than `pnpm dlx`, which isolates Stryker from the project's
+        # typescript/vitest and crashes) lets the core + vitest-runner resolve
+        # the workspace toolchain. The lockfile mutation is discarded with the
+        # throwaway runner. pnpm's symlinked layout needs the plugin named
+        # explicitly — see `plugins` in web/stryker.conf.json.
+        run: pnpm add -D @stryker-mutator/core@9 @stryker-mutator/vitest-runner@9
+      - name: run Stryker
+        run: pnpm exec stryker run
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: stryker-report-${{ github.run_id }}
+          path: web/reports/mutation/
+          if-no-files-found: ignore
+          retention-days: 90
