@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useStore } from "../store/store";
 import { AgentMap } from "./AgentMapView";
@@ -15,12 +15,17 @@ export function TraceView() {
   const selectedId = useStore((s) => s.selectedSpanId);
   const pid = useStore((s) => s.activeProjectId);
   const navigate = useNavigate();
-  const [tab, setTab] = useState<TraceTab>("graph");
   const isWorkflow = trace?.run.source === "log";
-
-  useEffect(() => {
+  // Default the tab from the trace kind (workflow → timeline, agent → graph), but
+  // let the user override by clicking. Re-derive only when isWorkflow flips, using
+  // the documented "adjust state during render" pattern instead of an effect —
+  // a synchronous setState in an effect would trigger a cascading render.
+  const [tab, setTab] = useState<TraceTab>(isWorkflow ? "timeline" : "graph");
+  const [prevIsWorkflow, setPrevIsWorkflow] = useState(isWorkflow);
+  if (isWorkflow !== prevIsWorkflow) {
+    setPrevIsWorkflow(isWorkflow);
     setTab(isWorkflow ? "timeline" : "graph");
-  }, [isWorkflow]);
+  }
 
   if (!trace) {
     return <section className="p-4 text-sm text-muted">Select a run to view its trace.</section>;
