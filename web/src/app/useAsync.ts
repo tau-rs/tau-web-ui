@@ -50,6 +50,9 @@ export function useAsync<T>(
         setState({ status: "error", error: errorMessage(err) });
       },
     );
+    // We intentionally key this callback on the caller-provided `deps`, not on
+    // `fetcher`/`isEmpty` (whose identities change every render). Both hook rules
+    // that would object to a forwarded deps array are suppressed for that reason.
     // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   }, deps);
 

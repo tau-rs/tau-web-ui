@@ -43,16 +43,28 @@ export function DashboardPage() {
   usePollRuns();
   const runs = useStore((s) => s.runs);
   const runsLoaded = useStore((s) => s.runsLoaded);
+  const runsError = useStore((s) => s.runsError);
   const m = useMemo(() => computeMetrics(runs), [runs]);
 
   if (!runsLoaded) return <DashboardSkeleton />;
 
   return (
     <div className="space-y-3 p-4">
-      {runs.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-2 text-xs text-muted">
-          No runs yet — launch an agent or workflow to populate the dashboard.
+      {runsError ? (
+        // A failed load is an outage, not an empty project — surface the reason
+        // instead of the "no runs yet" hint (D14: don't let down look like empty).
+        <div
+          role="alert"
+          className="rounded-lg border border-st-error/40 bg-st-error-soft px-3 py-2 text-xs text-st-error"
+        >
+          Couldn’t load runs: {runsError}
         </div>
+      ) : (
+        runs.length === 0 && (
+          <div className="rounded-lg border border-dashed border-border bg-surface px-3 py-2 text-xs text-muted">
+            No runs yet — launch an agent or workflow to populate the dashboard.
+          </div>
+        )
       )}
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard

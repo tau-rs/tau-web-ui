@@ -64,4 +64,15 @@ describe("DashboardPage", () => {
     );
     expect(screen.getByText(/no runs yet — launch/i)).toBeInTheDocument();
   });
+
+  it("shows an outage banner with the reason when the first load failed (not the empty hint)", () => {
+    useStore.setState({ runs: [], runsLoaded: true, runsError: "500: gateway down" });
+    render(
+      <ProjectProvider pid="demo">
+        <DashboardPage />
+      </ProjectProvider>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(/500: gateway down/);
+    expect(screen.queryByText(/no runs yet — launch/i)).not.toBeInTheDocument();
+  });
 });
