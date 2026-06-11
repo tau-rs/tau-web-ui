@@ -41,6 +41,9 @@ interface AppStore {
   loadHealth: (pid: string) => Promise<void>;
   loadProject: (pid: string) => Promise<void>;
   refreshRuns: (pid: string, filters?: { status?: string; agent?: string }) => Promise<void>;
+  /** Subscribe to live runs polling. The first subscriber starts one shared,
+   *  visibility-paused, error-backoff interval; returns an unsubscribe fn. */
+  subscribeRuns: (pid: string, ms?: number) => () => void;
   launch: (pid: string, agent: string, prompt: string) => Promise<string>;
   loadWorkflows: (pid: string) => Promise<void>;
   launchWorkflow: (pid: string, workflow: string, input: string) => Promise<string>;
@@ -61,6 +64,41 @@ function assistantTextFromEvents(events?: Event[]): string {
 export const useStore = create<AppStore>((set, get) => {
   // --- runs polling bookkeeping (non-reactive: must not trigger re-renders) ---
   let runsInFlight: Promise<void> | null = null;
+  let pollers = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let failures = 0;
+  let pollPid = "";
+  let pollMs = 5000;
+  const MAX_BACKOFF_MS = 60_000;
+
+  const nextDelay = () =>
+    failures === 0 ? pollMs : Math.min(pollMs * 2 ** failures, MAX_BACKOFF_MS);
+
+  const scheduleNext = (delay: number) => {
+    timer = setTimeout(runTick, delay);
+  };
+
+  async function runTick() {
+    timer = null;
+    if (typeof document !== "undefined" && document.hidden) {
+      scheduleNext(pollMs); // paused while hidden — re-check at base interval
+      return;
+    }
+    try {
+      await get().refreshRuns(pollPid);
+      failures = 0;
+    } catch {
+      failures += 1;
+    }
+    if (pollers > 0) scheduleNext(nextDelay());
+  }
+
+  const onVisible = () => {
+    if (pollers > 0 && !document.hidden && timer !== null) {
+      clearTimeout(timer);
+      void runTick(); // refresh promptly when the tab is refocused
+    }
+  };
 
   return {
     health: null,
@@ -100,6 +138,32 @@ export const useStore = create<AppStore>((set, get) => {
           runsInFlight = null;
         });
       return runsInFlight;
+    },
+
+    subscribeRuns: (pid, ms = 5000) => {
+      pollPid = pid;
+      pollMs = ms;
+      pollers += 1;
+      if (pollers === 1) {
+        failures = 0;
+        if (typeof document !== "undefined") {
+          document.addEventListener("visibilitychange", onVisible);
+        }
+        scheduleNext(0); // immediate first tick (honours the hidden check)
+      }
+      return () => {
+        pollers -= 1;
+        if (pollers === 0) {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          failures = 0;
+          if (typeof document !== "undefined") {
+            document.removeEventListener("visibilitychange", onVisible);
+          }
+        }
+      };
     },
 
     launch: async (pid, agent, prompt) => {

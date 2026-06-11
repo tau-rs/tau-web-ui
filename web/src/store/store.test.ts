@@ -171,3 +171,70 @@ describe("store project scope", () => {
     vi.restoreAllMocks();
   });
 });
+
+const okFetch = () => vi.fn().mockResolvedValue({ ok: true, json: async () => [] as unknown[] });
+const errFetch = () =>
+  vi.fn().mockResolvedValue({ ok: false, status: 500, text: async () => "boom" });
+
+describe("store.subscribeRuns scheduler", () => {
+  it("two subscribers share one interval (one GET /runs per tick)", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+
+    const s = useStore.getState();
+    const un1 = s.subscribeRuns("demo", 5000);
+    const un2 = s.subscribeRuns("demo", 5000);
+
+    await vi.advanceTimersByTimeAsync(0); // flush the immediate tick
+    fetchMock.mockClear();
+
+    await vi.advanceTimersByTimeAsync(5000); // one interval
+    expect(fetchMock).toHaveBeenCalledTimes(1); // ONE request, not two
+
+    un1();
+    un2();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("does not poll while the tab is hidden", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+
+    const un = useStore.getState().subscribeRuns("demo", 5000);
+    await vi.advanceTimersByTimeAsync(20000); // 4 intervals, tab hidden the whole time
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    un();
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("backs off on repeated errors instead of polling every interval", async () => {
+    const fetchMock = errFetch();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.useFakeTimers();
+
+    const un = useStore.getState().subscribeRuns("demo", 1000); // base 1s
+
+    await vi.advanceTimersByTimeAsync(0); // t=0 immediate tick fails -> next at +2000
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000); // t=1000: no tick (backed off)
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000); // t=2000: tick fails -> next at +4000
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(3999); // t=5999: still backed off
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1); // t=6000: third tick
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // base-interval polling would have fired ~7 times by t=6000; backoff fired 3.
+
+    un();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+});
