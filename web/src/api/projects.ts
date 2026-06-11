@@ -31,7 +31,7 @@ export const addProjectByGit = (git_url: string) =>
   }).then(json<ProjectMeta>);
 
 export const removeProject = (pid: string) =>
-  fetch(`/api/projects/${pid}`, { method: "DELETE" }).then((res) => {
+  fetch(`/api/projects/${encodeURIComponent(pid)}`, { method: "DELETE" }).then((res) => {
     if (!res.ok) throw new Error(`${res.status}`);
   });
 

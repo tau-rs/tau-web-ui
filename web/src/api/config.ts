@@ -33,10 +33,12 @@ export const installPackage = (pid: string, git_url: string) =>
     .then((r) => r.package);
 
 export const uninstallPackage = (pid: string, name: string) =>
-  fetch(scopedPath(pid, `/packages/${name}`), { method: "DELETE" }).then(json<{ ok: boolean }>);
+  fetch(scopedPath(pid, `/packages/${encodeURIComponent(name)}`), { method: "DELETE" }).then(
+    json<{ ok: boolean }>,
+  );
 
 export const updatePackage = (pid: string, name: string, to?: string) =>
-  fetch(scopedPath(pid, `/packages/${name}/update`), {
+  fetch(scopedPath(pid, `/packages/${encodeURIComponent(name)}/update`), {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ to: to ?? null }),
