@@ -1,0 +1,178 @@
+name: Heavy (T2)
+
+# T2 — "heavy lifting on feature release" tier.
+#
+# TRIGGERS: a `v*` tag push (the real release) and manual workflow_dispatch
+# (a safe dry-run that builds + SBOMs but creates NO GitHub Release — the
+# `release` job is gated on the tag ref). This tier NEVER runs on
+# pull_request or merge_group, so the T1 fast gate and the `ci-summary`
+# contract are untouched and the PR path is not slowed.
+#
+# Single-sourcing: when `just heavy` lands (brief 101) the build / sbom
+# steps should call it so the T2 bundle stays single-sourced. Inlined here
+# until then.
+#
+# SBOM is CycloneDX (cargo + pnpm). cosign signing + SLSA provenance are
+# phase-2 and intentionally deferred.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: heavy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    name: heavy / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          # Read-only on this tier: ci.yml's `rust` job on main is the
+          # authoritative cache writer.
+          save-if: 'false'
+      - name: build workspace (debug, locked — bins for e2e)
+        run: cargo build --workspace --locked
+      - name: test (locked)
+        run: cargo test --workspace --locked
+      - name: build gateway (release, locked — for artifact)
+        run: cargo build --release --bin tau-gateway --locked
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
+        with:
+          version: 10
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install web deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: build web
+        working-directory: web
+        run: pnpm build
+      # e2e runs on Linux only: web/playwright.config.ts pins unix paths
+      # (./target/debug/tau-gateway) and a Linux-oriented webServer. The OS
+      # matrix above still covers build+test on all three OSs (the actual
+      # drift catcher); e2e adds the full Playwright leg on Linux.
+      - name: install chromium (+ system deps, Linux)
+        if: runner.os == 'Linux'
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chromium
+      - name: e2e (full, Linux)
+        if: runner.os == 'Linux'
+        working-directory: web
+        run: pnpm e2e
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ failure() && runner.os == 'Linux' }}
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: |
+            web/playwright-report/
+            web/test-results/
+          retention-days: 7
+      - name: stage release binary
+        shell: bash
+        run: |
+          mkdir -p _release
+          # cargo emits tau-gateway OR tau-gateway.exe depending on OS.
+          if [ -f target/release/tau-gateway.exe ]; then
+            cp target/release/tau-gateway.exe "_release/tau-gateway-${{ matrix.os }}.exe"
+          else
+            cp target/release/tau-gateway "_release/tau-gateway-${{ matrix.os }}"
+          fi
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-bin-${{ matrix.os }}
+          path: _release/
+          retention-days: 7
+
+  sbom:
+    name: sbom (CycloneDX npm + cargo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          save-if: 'false'
+      - name: install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+      - name: CycloneDX SBOM (cargo workspace)
+        # Emits <crate>.cdx.json next to each workspace member's Cargo.toml.
+        run: cargo cyclonedx --format json --all
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
+        with:
+          version: 10
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: install web deps
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: CycloneDX SBOM (pnpm / web)
+        run: pnpm dlx @cyclonedx/cdxgen@11 --type pnpm --output sbom-npm.cdx.json web
+      - name: collect SBOMs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _sbom
+          cp sbom-npm.cdx.json _sbom/
+          # cargo-cyclonedx writes one *.cdx.json per workspace member.
+          find . -path ./node_modules -prune -o -name '*.cdx.json' -print \
+            | grep -v '^./_sbom/' \
+            | grep -v 'sbom-npm.cdx.json' \
+            | while read -r f; do cp "$f" "_sbom/cargo-$(basename "$f")"; done
+          echo "Collected SBOMs:"; ls -la _sbom/
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sbom
+          path: _sbom/
+          retention-days: 90
+
+  release:
+    name: gh-release-create
+    needs: [matrix, sbom]
+    # Tag-only: a workflow_dispatch dry-run builds + SBOMs but never
+    # publishes a GitHub Release.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # for GitHub Release creation
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: release-bin-*
+          path: _release/
+          merge-multiple: true
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: sbom
+          path: _sbom/
+      - uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3
+        with:
+          files: |
+            _release/*
+            _sbom/*
+          fail_on_unmatched_files: true

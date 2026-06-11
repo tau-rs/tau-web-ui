@@ -8,3 +8,9 @@
 /web/playwright-report/
 /.superpowers/
 **/.vite/
+# Local output of the T2/T3 heavy & mutation tiers (CI uploads these as
+# artifacts; they should never be committed).
+/web/reports/
+**/.stryker-tmp/
+/mutants.out/
+*.cdx.json
