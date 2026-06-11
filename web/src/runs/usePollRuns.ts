@@ -2,13 +2,11 @@ import { useEffect } from "react";
 import { useStore } from "../store/store";
 import { useProjectId } from "../app/project-context";
 
-/** Refresh the runs list now and every `ms` while mounted (keeps dashboards live). */
+/** Subscribe to the shared runs poller while mounted. Many consumers share one
+ *  interval (ref-counted in the store); polling pauses while the tab is hidden
+ *  and backs off on error. */
 export function usePollRuns(ms = 5000) {
-  const refreshRuns = useStore((s) => s.refreshRuns);
+  const subscribeRuns = useStore((s) => s.subscribeRuns);
   const pid = useProjectId();
-  useEffect(() => {
-    refreshRuns(pid).catch(() => {});
-    const t = setInterval(() => refreshRuns(pid).catch(() => {}), ms);
-    return () => clearInterval(t);
-  }, [refreshRuns, ms, pid]);
+  useEffect(() => subscribeRuns(pid, ms), [subscribeRuns, ms, pid]);
 }
