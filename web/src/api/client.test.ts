@@ -9,6 +9,12 @@ import {
   request,
   requestVoid,
 } from "./client";
+import { useNotifications } from "../notify/notify";
+
+class FakeWS {
+  onmessage: ((ev: MessageEvent) => void) | null = null;
+  constructor(public url: string) {}
+}
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -87,16 +93,42 @@ describe("api client (project-scoped)", () => {
   });
 
   it("percent-encodes the run id in the live WS url", () => {
-    const urls: string[] = [];
-    class FakeWS {
-      onmessage: ((ev: MessageEvent) => void) | null = null;
-      constructor(url: string) {
-        urls.push(url);
-      }
-    }
     vi.stubGlobal("WebSocket", FakeWS as unknown as typeof WebSocket);
-    openRunSocket("demo", "a/b", () => {});
-    expect(urls[0]).toContain("/api/projects/demo/runs/a%2Fb/events");
+    const ws = openRunSocket("demo", "a/b", () => {}) as unknown as FakeWS;
+    expect(ws.url).toContain("/api/projects/demo/runs/a%2Fb/events");
+  });
+
+  it("delivers a valid frame to onMessage", () => {
+    vi.stubGlobal("WebSocket", FakeWS as unknown as typeof WebSocket);
+    const got: unknown[] = [];
+    const ws = openRunSocket("demo", "R1", (m) => got.push(m)) as unknown as FakeWS;
+    ws.onmessage!({
+      data: JSON.stringify({ type: "run_update", run: { id: "R1", status: "completed" } }),
+    } as MessageEvent);
+    expect(got).toHaveLength(1);
+    expect((got[0] as { type: string }).type).toBe("run_update");
+  });
+
+  it("surfaces a malformed frame instead of silently dropping it, and does not call onMessage", () => {
+    useNotifications.setState({ items: [] });
+    vi.stubGlobal("WebSocket", FakeWS as unknown as typeof WebSocket);
+    const got: unknown[] = [];
+    const ws = openRunSocket("demo", "R1", (m) => got.push(m)) as unknown as FakeWS;
+    ws.onmessage!({ data: "this is not json" } as MessageEvent);
+    expect(got).toHaveLength(0);
+    const items = useNotifications.getState().items;
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("error");
+  });
+
+  it("surfaces an unknown-discriminant frame (protocol drift) without driving state", () => {
+    useNotifications.setState({ items: [] });
+    vi.stubGlobal("WebSocket", FakeWS as unknown as typeof WebSocket);
+    const got: unknown[] = [];
+    const ws = openRunSocket("demo", "R1", (m) => got.push(m)) as unknown as FakeWS;
+    ws.onmessage!({ data: JSON.stringify({ type: "bogus" }) } as MessageEvent);
+    expect(got).toHaveLength(0);
+    expect(useNotifications.getState().items).toHaveLength(1);
   });
 
   it("scopes each request to its explicit project argument, not a shared default", async () => {

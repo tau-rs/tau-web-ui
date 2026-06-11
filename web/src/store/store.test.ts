@@ -100,6 +100,30 @@ describe("store.applyWs", () => {
     s.applyWs({ type: "run_update", run: { id: "R1", status: "completed" } as any } as WsMessage);
     expect(useStore.getState().currentTrace!.run.status).toBe("completed");
   });
+
+  it("a terminal run_update closes the live socket and clears the store reference", () => {
+    let closed = 0;
+    const fakeWs = { close: () => (closed += 1) } as unknown as WebSocket;
+    useStore.setState({ socket: fakeWs });
+    useStore.getState().applyWs({
+      type: "run_update",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
+      run: { id: "R1", status: "completed" } as any,
+    } as WsMessage);
+    expect(closed).toBe(1);
+    expect(useStore.getState().socket).toBeNull();
+  });
+
+  it("a non-terminal run_update leaves the live socket attached", () => {
+    const fakeWs = { close: () => {} } as unknown as WebSocket;
+    useStore.setState({ socket: fakeWs });
+    useStore.getState().applyWs({
+      type: "run_update",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
+      run: { id: "R1", status: "running" } as any,
+    } as WsMessage);
+    expect(useStore.getState().socket).toBe(fakeWs);
+  });
 });
 
 describe("store.loadHealth", () => {
