@@ -54,7 +54,7 @@ describe("routing", () => {
   it("renders the Workflows graph editor as gated", () => {
     at("/projects/demo/workflows");
     expect(screen.getByRole("heading", { name: /workflows \/ graph/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^build$/i })).not.toBeDisabled();
   });
 
   it("renders the Packages page", () => {

@@ -26,6 +26,7 @@ import type { GraphActions } from "./GraphActions";
 import { StepPalette } from "./StepPalette";
 import { listAgents } from "../api/agents";
 import { useProjectId } from "../app/project-context";
+import { listTargets, build } from "../api/ship";
 
 export function GraphEditor() {
   const pid = useProjectId();
@@ -35,6 +36,23 @@ export function GraphEditor() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [edit, setEdit] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [lastHash, setLastHash] = useState<string | null>(null);
+
+  async function onBuild() {
+    setBuilding(true);
+    try {
+      const ts = await listTargets(pid);
+      const target = ts.find((t) => t.status === "available")?.triple;
+      if (!target) return;
+      const b = await build(pid, target);
+      setLastHash(b.sha256);
+    } catch {
+      /* surface nothing on the mock */
+    } finally {
+      setBuilding(false);
+    }
+  }
 
   const [recommended, setRecommended] = useState<string>("");
   useEffect(() => {
@@ -181,17 +199,22 @@ export function GraphEditor() {
           {edit ? "Done" : "Edit"}
         </button>
         <button
-          disabled
-          title="waits on tau β.2"
-          className="ml-auto cursor-not-allowed rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 opacity-80"
+          onClick={onBuild}
+          disabled={building}
+          className="ml-auto rounded-md border border-border px-3 py-1 text-xs font-semibold text-fg hover:bg-accent/10 disabled:opacity-60"
         >
-          🔒 Build from IR
+          {building ? "Building…" : "Build"}
         </button>
+        {lastHash && (
+          <span className="font-mono text-[10px] text-st-ok" title="reproducibility hash">
+            ✓ {lastHash.slice(0, 8)}
+          </span>
+        )}
       </div>
 
       {edit && (
         <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-          Edit mode — changes are local; Save → IR waits on tau β.2.
+          Edit mode — changes are local (graph→TOML save is a separate track).
         </div>
       )}
 

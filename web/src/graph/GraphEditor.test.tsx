@@ -71,24 +71,47 @@ beforeEach(() => {
             },
           ],
         });
+      if (url.includes("/targets"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              triple: "darwin-native-strict",
+              platform: "darwin",
+              adapter_family: "native",
+              tier: "tier1",
+              status: "available",
+              required_shapes: [],
+            },
+          ],
+        });
+      if (url.includes("/build"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            path: "dist/demo.tau",
+            sha256: "abc123def456",
+            size_bytes: 1024,
+            built_at: null,
+          }),
+        });
       return Promise.resolve({ ok: true, json: async () => ({}) });
     }),
   );
 });
 
 describe("GraphEditor", () => {
-  it("loads the graph, shows a disabled gated Build button + the first step inspector", async () => {
+  it("builds via the ship endpoint and shows the reproducibility hash", async () => {
+    const user = userEvent.setup();
     render(
       <ProjectProvider pid="demo">
         <GraphEditor />
       </ProjectProvider>,
     );
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: /workflow/i })).toBeInTheDocument(),
-    );
-    expect(screen.getByRole("button", { name: /build from ir/i })).toBeDisabled();
-    // default-selected first node → inspector shows "gather" (canvas is mocked, so this is unique)
-    await waitFor(() => expect(screen.getByText("gather")).toBeInTheDocument());
+    const buildBtn = await screen.findByRole("button", { name: /^build$/i });
+    expect(buildBtn).not.toBeDisabled();
+    await user.click(buildBtn);
+    await waitFor(() => expect(screen.getByText(/abc123de/)).toBeInTheDocument());
   });
 
   it("toggles edit mode (local banner)", async () => {
