@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { AgentDetail } from "../types/AgentDetail";
 import { listAgents } from "../api/agents";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 export function AgentsIndexPage() {
   const pid = useProjectId();
@@ -11,7 +12,7 @@ export function AgentsIndexPage() {
   useEffect(() => {
     listAgents(pid)
       .then(setAgents)
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load agents", e));
   }, [pid]);
 
   return (
