@@ -127,7 +127,7 @@ impl AppState {
         let graph_source: Box<dyn WorkflowGraphSource> = if is_mock {
             Box::new(graph::MockGraph)
         } else {
-            Box::new(graph::CliGraph)
+            Box::new(graph::CliGraph::new(project.clone()))
         };
         AppState(Arc::new(Inner {
             bin,
@@ -568,8 +568,8 @@ impl AppState {
 
     /// Structural graph from the mock seam, enriched per `agent.run` node with the
     /// agent's provider (its `llm_backend`, else the recommended backend) + tools.
-    pub fn workflow_graph(&self, name: &str) -> WorkflowGraph {
-        let mut g = self.0.graph_source.graph(name);
+    pub fn workflow_graph(&self, name: &str) -> Result<WorkflowGraph, crate::graph::GraphError> {
+        let mut g = self.0.graph_source.graph(name)?;
         let recommended = self.recommended_backend();
         for n in g.nodes.iter_mut() {
             if n.kind != "agent.run" {
@@ -593,7 +593,7 @@ impl AppState {
                 None => n.provider = Some(recommended.clone()),
             }
         }
-        g
+        Ok(g)
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
