@@ -15,14 +15,15 @@ use crate::adapters::TraceDelta;
 use crate::checks::{self, CheckReport, CheckSource};
 use crate::config::{self, AgentDetail};
 use crate::graph::{self, WorkflowGraph, WorkflowGraphSource};
+use crate::introspect::PluginIntrospector;
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
-use crate::plugins::{self, PluginDetail, PluginsSource};
+use crate::plugins::{self, PluginCatalog, PluginsSource};
 use crate::providers::{self, Provider};
 use crate::serve_client::{RunItem, ServeClient};
 use crate::ship::{self, BuildError, Bundle, ShipSource, Target};
 use crate::skills::{self, InstalledSkills, SkillDetail, SkillSummary};
 use crate::store::{RunStore, TraceReplay};
-use crate::tools::{self, ToolDetail, ToolsSource};
+use crate::tools::{self, ToolCatalog, ToolsSource};
 use crate::trace::*;
 use crate::workflow::{MockRunner, WorkflowItem, WorkflowRunner};
 
@@ -44,6 +45,8 @@ pub struct Inner {
     ship_source: Box<dyn ShipSource>,
     check_source: Box<dyn CheckSource>,
     graph_source: Box<dyn WorkflowGraphSource>,
+    /// Shared describe sweep for tools + plugins (None on the mock path).
+    introspector: Option<Arc<PluginIntrospector>>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -98,15 +101,31 @@ impl AppState {
         } else {
             Box::new(skills::CliInstalled::new(bin.clone(), project.clone()))
         };
+        let introspector: Option<Arc<PluginIntrospector>> = if is_mock {
+            None
+        } else {
+            Some(Arc::new(PluginIntrospector::new(
+                bin.clone(),
+                project.clone(),
+            )))
+        };
         let tools_source: Box<dyn ToolsSource> = if is_mock {
             Box::new(tools::MockTools)
         } else {
-            Box::new(tools::CliTools)
+            Box::new(tools::CliTools::new(
+                introspector
+                    .clone()
+                    .expect("real path builds an introspector"),
+            ))
         };
         let plugins_source: Box<dyn PluginsSource> = if is_mock {
             Box::new(plugins::MockPlugins)
         } else {
-            Box::new(plugins::CliPlugins)
+            Box::new(plugins::CliPlugins::new(
+                introspector
+                    .clone()
+                    .expect("real path builds an introspector"),
+            ))
         };
         let ship_source: Box<dyn ShipSource> = if is_mock {
             let project_name = project
@@ -147,6 +166,7 @@ impl AppState {
             ship_source,
             check_source,
             graph_source,
+            introspector,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -500,15 +520,27 @@ impl AppState {
     }
 
     pub fn package_install(&self, git_url: &str) -> Result<Package> {
-        self.0.package_ops.install(git_url)
+        let r = self.0.package_ops.install(git_url);
+        if r.is_ok() {
+            self.invalidate_introspect();
+        }
+        r
     }
 
     pub fn package_uninstall(&self, name: &str) -> Result<()> {
-        self.0.package_ops.uninstall(name)
+        let r = self.0.package_ops.uninstall(name);
+        if r.is_ok() {
+            self.invalidate_introspect();
+        }
+        r
     }
 
     pub fn package_update(&self, name: &str, to: Option<String>) -> Result<Package> {
-        self.0.package_ops.update(name, to)
+        let r = self.0.package_ops.update(name, to);
+        if r.is_ok() {
+            self.invalidate_introspect();
+        }
+        r
     }
 
     pub fn package_resolve(&self) -> Result<Vec<Package>> {
@@ -523,6 +555,7 @@ impl AppState {
     pub fn import_agent(&self, git_url: &str, llm_backend: &str) -> Result<String> {
         let id = name_from_url(git_url);
         let pkg = self.0.package_ops.install(git_url)?;
+        self.invalidate_introspect();
         let detail = AgentDetail {
             id: id.clone(),
             display_name: Some(id.clone()),
@@ -552,15 +585,26 @@ impl AppState {
     }
 
     pub fn import_skill(&self, git_url: &str) -> anyhow::Result<String> {
-        self.0.installed_skills.import(git_url)
+        let r = self.0.installed_skills.import(git_url);
+        if r.is_ok() {
+            self.invalidate_introspect();
+        }
+        r
     }
 
-    pub fn list_tools(&self) -> Vec<ToolDetail> {
+    pub fn list_tools(&self) -> ToolCatalog {
         tools::list_tools(&self.0.project, self.0.tools_source.as_ref())
     }
 
-    pub fn list_plugins(&self) -> Vec<PluginDetail> {
+    pub fn list_plugins(&self) -> PluginCatalog {
         plugins::list_plugins(self.0.plugins_source.as_ref())
+    }
+
+    /// Drop the cached describe sweep (call after any package mutation).
+    fn invalidate_introspect(&self) {
+        if let Some(i) = &self.0.introspector {
+            i.invalidate();
+        }
     }
 
     pub fn list_targets(&self) -> Vec<Target> {

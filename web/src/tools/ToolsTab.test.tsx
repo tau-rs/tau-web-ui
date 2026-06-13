@@ -28,7 +28,10 @@ const tools = [
 ];
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => tools }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({ ok: true, json: async () => ({ tools, error_count: 0 }) }),
+  );
 });
 
 describe("ToolsTab", () => {
@@ -58,5 +61,20 @@ describe("ToolsTab", () => {
     await waitFor(() => expect(screen.getByText("shell")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /shell/i }));
     expect(screen.getByText(/unused/i)).toBeInTheDocument();
+  });
+
+  it("shows a failed-introspection notice when error_count > 0", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ tools: [], error_count: 2 }) }),
+    );
+    render(
+      <ProjectProvider pid="demo">
+        <ToolsTab />
+      </ProjectProvider>,
+    );
+    await waitFor(() =>
+      expect(screen.getByText(/2 plugins failed to introspect/i)).toBeInTheDocument(),
+    );
   });
 });

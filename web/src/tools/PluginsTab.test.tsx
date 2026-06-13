@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { PluginsTab } from "./PluginsTab";
 import { ProjectProvider } from "../app/project-context";
 
@@ -17,14 +16,14 @@ const plugins = [
       port: "Tool",
       protocol_version: 1,
       tool: { name: "fs-read", input_schema: { path: "string" } },
-      capabilities: [{ kind: "fs.read", fields: { paths: ["/x/**"] } }],
+      capabilities: [],
     },
     transcript: [
       { direction: "out", method: "meta.handshake", payload: { protocol_version: 1 } },
       {
         direction: "in",
         method: "result",
-        payload: { ok: true, content: [{ type: "text", text: "# tau" }] },
+        payload: { provides: "Tool", protocol_version: 1 },
       },
     ],
   },
@@ -36,25 +35,24 @@ const plugins = [
     binary: "anthropic",
     port: "LlmBackend",
     protocol_version: 1,
-    describe: {
-      port: "LlmBackend",
-      protocol_version: 1,
-      tool: null,
-      capabilities: [{ kind: "net.http", fields: { hosts: ["api.anthropic.com"] } }],
-    },
+    describe: { port: "LlmBackend", protocol_version: 1, tool: null, capabilities: [] },
     transcript: [
-      { direction: "out", method: "llm.generate", payload: { model: "claude-opus-4" } },
-      { direction: "in", method: "result", payload: { content: [], usage: { input_tokens: 10 } } },
+      { direction: "out", method: "meta.handshake", payload: { protocol_version: 1 } },
+      { direction: "in", method: "result", payload: { plugin_name: "anthropic" } },
     ],
   },
 ];
 
+function stub(body: unknown) {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => body }));
+}
+
 beforeEach(() => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => plugins }));
+  stub({ plugins, errors: [] });
 });
 
 describe("PluginsTab", () => {
-  it("lists plugins, selects the first by default, shows describe + transcript", async () => {
+  it("lists plugins, selects the first by default, shows describe + transcript, no mock banner", async () => {
     render(
       <ProjectProvider pid="demo">
         <PluginsTab />
@@ -63,30 +61,25 @@ describe("PluginsTab", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /fs-read/i })).toBeInTheDocument(),
     );
-    // gated banner always present
-    expect(screen.getByText(/mock data/i)).toBeInTheDocument();
-    // default selection = fs-read → tool schema + a frame method
+    // mock banner is gone now that the real path is the default
+    expect(screen.queryByText(/mock data/i)).not.toBeInTheDocument();
     expect(screen.getByText(/fs-read\(path: string\)/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /meta\.handshake/i })).toBeInTheDocument();
   });
 
-  it("switches selection and expands a frame to show JSON", async () => {
-    const user = userEvent.setup();
+  it("renders an error row for a plugin that failed to introspect", async () => {
+    stub({
+      plugins: [],
+      errors: [{ package: "shell", kind: "timeout", message: "describe timed out" }],
+    });
     render(
       <ProjectProvider pid="demo">
         <PluginsTab />
       </ProjectProvider>,
     );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /anthropic/i })).toBeInTheDocument(),
-    );
-    await user.click(screen.getByRole("button", { name: /anthropic/i }));
-    const frameBtn = screen.getByRole("button", { name: /llm\.generate/i });
-    expect(frameBtn).toBeInTheDocument();
-    await user.click(frameBtn);
-    // expanded pretty JSON contains the model. Match the pretty form ("model": …
-    // with a space) so we hit only the expanded <pre>, not the one-line preview
-    // (which renders {"model":"claude-opus-4"} with no space).
-    expect(screen.getByText(/"model": "claude-opus-4"/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("shell")).toBeInTheDocument());
+    expect(screen.getByText("timeout")).toBeInTheDocument();
+    expect(screen.getByText(/describe timed out/)).toBeInTheDocument();
+    expect(screen.getByText(/no plugins/i)).toBeInTheDocument();
   });
 });
