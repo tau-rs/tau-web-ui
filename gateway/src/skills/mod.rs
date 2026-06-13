@@ -2,9 +2,10 @@
 //! (SKILL.md + tau.toml kind="skill"); installed skills come from a seam.
 
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -477,18 +478,67 @@ impl InstalledSkills for MockInstalled {
     }
 }
 
-/// CLI seam — not wired in v1 (the mock covers fake-tau-serve).
-pub struct CliInstalled;
+/// Real-tau installed-skills seam: shells `tau skill list/show` and `tau install`
+/// in the project dir (single cwd-resolved scope — `skill list` has no `--all`).
+/// Reads return empty/None on failure; `import` is URL-guarded and surfaces stderr.
+pub struct CliInstalled {
+    bin: PathBuf,
+    project: PathBuf,
+}
+
+impl CliInstalled {
+    pub fn new(bin: PathBuf, project: PathBuf) -> Self {
+        CliInstalled { bin, project }
+    }
+
+    /// Run a tau subcommand in the project dir; returns (success, stdout, stderr).
+    fn run(&self, args: &[&str]) -> (bool, String, String) {
+        match Command::new(&self.bin)
+            .args(args)
+            .current_dir(&self.project)
+            .output()
+        {
+            Ok(o) => (
+                o.status.success(),
+                String::from_utf8_lossy(&o.stdout).into_owned(),
+                String::from_utf8_lossy(&o.stderr).into_owned(),
+            ),
+            Err(e) => (false, String::new(), e.to_string()),
+        }
+    }
+}
 
 impl InstalledSkills for CliInstalled {
     fn list(&self) -> Vec<SkillSummary> {
-        vec![]
+        let (_, out, _) = self.run(&["skill", "list", "--json"]);
+        parse_skill_list_json(&out)
     }
-    fn read(&self, _name: &str) -> Option<SkillDetail> {
-        None
+    fn read(&self, name: &str) -> Option<SkillDetail> {
+        // Guard the arg before shelling out (reject leading `-` / odd tokens).
+        if !crate::packages::is_safe_pkg_name(name) {
+            return None;
+        }
+        let (ok, out, _) = self.run(&["skill", "show", name, "--json", "--body"]);
+        if !ok {
+            return None;
+        }
+        parse_skill_show_json(&out)
     }
-    fn import(&self, _git_url: &str) -> Result<String> {
-        bail!("skill import requires a real tau binary")
+    fn import(&self, git_url: &str) -> Result<String> {
+        if !crate::packages::is_safe_pkg_url(git_url) {
+            return Err(anyhow!("invalid package url: {git_url}"));
+        }
+        let (ok, out, err) = self.run(&["install", git_url, "--json"]);
+        if !ok {
+            return Err(anyhow!("tau install failed: {}", err.trim()));
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(out.trim()).unwrap_or(serde_json::Value::Null);
+        let name = v["name"].as_str().unwrap_or("").to_string();
+        if name.is_empty() {
+            return Err(anyhow!("tau install returned no skill name"));
+        }
+        Ok(name)
     }
 }
 
