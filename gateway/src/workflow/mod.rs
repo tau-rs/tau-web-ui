@@ -407,6 +407,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cli_runner_spawn_failure_emits_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let runner = CliRunner::new(
+            std::path::PathBuf::from("/nonexistent/definitely-not-a-real-tau-binary"),
+            dir.path().to_path_buf(),
+        );
+        let mut rx = runner.run(
+            "wf".into(),
+            "in".into(),
+            "R1".into(),
+            tokio_util::sync::CancellationToken::new(),
+        );
+        let item = rx.recv().await.expect("runner should emit a terminal item");
+        match item {
+            WorkflowItem::Error(msg) => assert!(msg.contains("spawn"), "got: {msg}"),
+            other => panic!("expected Error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn build_report_has_a_failed_step() {
         let mut rx = MockRunner.run(
             "build-report".into(),

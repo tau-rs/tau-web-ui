@@ -64,7 +64,7 @@ async fn workflow_graph_over_http() {
 }
 
 #[tokio::test]
-async fn unknown_workflow_returns_404() {
+async fn unknown_workflow_mock_returns_empty_graph() {
     let data = tempfile::tempdir().unwrap();
     let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
         .await
