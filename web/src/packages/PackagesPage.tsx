@@ -9,6 +9,7 @@ import {
   verifyPackages,
 } from "../api/config";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 // Verify reports "ok" for a reproducible package. Anything else — drift, stale,
 // unverified, failed, or an unrecognized value — is not a success and must not
@@ -38,7 +39,7 @@ export function PackagesPage() {
     () =>
       getPackages(pid)
         .then(setPkgs)
-        .catch(() => {}),
+        .catch((e) => surfaceError("Failed to load packages", e)),
     [pid],
   );
   useEffect(() => {
@@ -47,12 +48,15 @@ export function PackagesPage() {
 
   async function onInstall() {
     if (!url.trim()) return;
-    await installPackage(pid, url).catch(() => {});
+    await installPackage(pid, url).catch((e) => surfaceError("Install failed", e));
     setUrl("");
     reload();
   }
   async function onVerify() {
-    const results = await verifyPackages(pid).catch(() => []);
+    const results = await verifyPackages(pid).catch((e) => {
+      surfaceError("Verify failed", e);
+      return [];
+    });
     setStatus(Object.fromEntries(results.map((r) => [r.name, r.status])));
   }
 
@@ -79,7 +83,7 @@ export function PackagesPage() {
           onClick={() =>
             resolvePackages(pid)
               .then(setPkgs)
-              .catch(() => {})
+              .catch((e) => surfaceError("Resolve failed", e))
           }
           className={ghost}
         >
@@ -120,7 +124,7 @@ export function PackagesPage() {
                       onClick={() =>
                         updatePackage(pid, p.name)
                           .then(reload)
-                          .catch(() => {})
+                          .catch((e) => surfaceError("Update failed", e))
                       }
                       className={ghost}
                     >
@@ -130,7 +134,7 @@ export function PackagesPage() {
                       onClick={() =>
                         uninstallPackage(pid, p.name)
                           .then(reload)
-                          .catch(() => {})
+                          .catch((e) => surfaceError("Uninstall failed", e))
                       }
                       className={ghost}
                     >

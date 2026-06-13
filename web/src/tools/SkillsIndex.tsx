@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { SkillSummary } from "../types/SkillSummary";
 import { listSkills, importSkill } from "../api/skills";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 export function SkillsIndex() {
   const pid = useProjectId();
@@ -13,7 +14,7 @@ export function SkillsIndex() {
     () =>
       listSkills(pid)
         .then(setSkills)
-        .catch(() => {}),
+        .catch((e) => surfaceError("Failed to load skills", e)),
     [pid],
   );
   useEffect(() => {
@@ -22,7 +23,7 @@ export function SkillsIndex() {
 
   async function onImport() {
     if (!url.trim()) return;
-    await importSkill(pid, url.trim()).catch(() => {});
+    await importSkill(pid, url.trim()).catch((e) => surfaceError("Skill import failed", e));
     setUrl("");
     reload();
   }
