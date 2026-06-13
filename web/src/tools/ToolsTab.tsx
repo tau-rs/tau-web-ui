@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ToolCatalog } from "../types/ToolCatalog";
 import type { ToolDetail } from "../types/ToolDetail";
 import { listTools } from "../api/tools";
 import { useProjectId } from "../app/project-context";
@@ -7,12 +8,12 @@ const MAX_CHIPS = 6;
 
 export function ToolsTab() {
   const pid = useProjectId();
-  const [tools, setTools] = useState<ToolDetail[]>([]);
+  const [cat, setCat] = useState<ToolCatalog>({ tools: [], error_count: 0 });
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     listTools(pid)
-      .then(setTools)
+      .then(setCat)
       .catch(() => {});
   }, [pid]);
 
@@ -26,27 +27,35 @@ export function ToolsTab() {
   }
 
   return (
-    <table className="w-full border-collapse text-xs">
-      <thead>
-        <tr className="border-b border-border text-left text-muted">
-          <th className="py-1 pr-2 font-medium">tool</th>
-          <th className="px-2 py-1 font-medium">version</th>
-          <th className="px-2 py-1 font-medium">provides</th>
-          <th className="px-2 py-1 font-medium">capabilities</th>
-          <th className="px-2 py-1 font-medium">used by</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tools.map((t) => (
-          <ToolRow
-            key={t.name}
-            tool={t}
-            expanded={open.has(t.name)}
-            onToggle={() => toggle(t.name)}
-          />
-        ))}
-      </tbody>
-    </table>
+    <div className="space-y-2">
+      {cat.error_count > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+          {cat.error_count} plugin{cat.error_count === 1 ? "" : "s"} failed to introspect — see the
+          Plugins tab.
+        </div>
+      )}
+      <table className="w-full border-collapse text-xs">
+        <thead>
+          <tr className="border-b border-border text-left text-muted">
+            <th className="py-1 pr-2 font-medium">tool</th>
+            <th className="px-2 py-1 font-medium">version</th>
+            <th className="px-2 py-1 font-medium">provides</th>
+            <th className="px-2 py-1 font-medium">capabilities</th>
+            <th className="px-2 py-1 font-medium">used by</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cat.tools.map((t) => (
+            <ToolRow
+              key={t.name}
+              tool={t}
+              expanded={open.has(t.name)}
+              onToggle={() => toggle(t.name)}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

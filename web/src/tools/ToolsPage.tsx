@@ -21,10 +21,7 @@ export function ToolsPage() {
             Tools
           </button>
           <button className={chip(tab === "plugins")} onClick={() => setTab("plugins")}>
-            Plugins{" "}
-            <span className="ml-1 rounded bg-amber-100 px-1 text-[8px] font-bold uppercase text-amber-800">
-              gated
-            </span>
+            Plugins
           </button>
         </div>
       </div>
