@@ -2,6 +2,8 @@
 //! workflow's steps. Mirrors the tools/ship/checks seam. The real path
 //! (`CliGraph`) parses `workflows/*.toml` + the tau β.2 Workflow IR — empty here.
 
+mod workflow_toml;
+
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -137,7 +139,6 @@ impl WorkflowGraphSource for MockGraph {
 
 /// Real graph source: parses `<project>/workflows/<name>.toml`.
 pub struct CliGraph {
-    #[allow(dead_code)]
     project: PathBuf,
 }
 
@@ -149,12 +150,7 @@ impl CliGraph {
 
 impl WorkflowGraphSource for CliGraph {
     fn graph(&self, name: &str) -> Result<WorkflowGraph, GraphError> {
-        // Real parse lands in Task A3.
-        Ok(WorkflowGraph {
-            workflow: name.into(),
-            nodes: vec![],
-            edges: vec![],
-        })
+        workflow_toml::parse_workflow_graph(&self.project, name)
     }
 }
 
@@ -196,11 +192,10 @@ mod tests {
     }
 
     #[test]
-    fn cli_graph_unknown_is_empty_for_now() {
-        let g = CliGraph::new(std::path::PathBuf::from("/nonexistent"))
+    fn cli_graph_unknown_is_not_found() {
+        let err = CliGraph::new(std::path::PathBuf::from("/nonexistent"))
             .graph("nightly-research")
-            .unwrap();
-        assert!(g.nodes.is_empty());
-        assert!(g.edges.is_empty());
+            .unwrap_err();
+        assert!(matches!(err, GraphError::NotFound(_)));
     }
 }
