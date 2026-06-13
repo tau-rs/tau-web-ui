@@ -62,3 +62,29 @@ async fn workflow_graph_over_http() {
     assert!(gather["tools"].as_array().unwrap().is_empty());
     assert_eq!(save["provider"], serde_json::Value::Null);
 }
+
+#[tokio::test]
+async fn unknown_workflow_mock_returns_empty_graph() {
+    let data = tempfile::tempdir().unwrap();
+    let reg = ProjectRegistry::load(bin(), true, data.path().to_path_buf())
+        .await
+        .unwrap();
+    let meta = reg.add_local(&project()).await.unwrap();
+    let base = serve(reg).await;
+    let http = reqwest::Client::new();
+
+    // Real CliGraph path requires a non-mock bin; the demo fixture is served
+    // by the mock here, so unknown names resolve to an empty graph (200).
+    // This test pins the *mock* contract: unknown name → 200 empty graph.
+    let resp = http
+        .get(format!(
+            "{base}/api/projects/{}/workflows/does-not-exist/graph",
+            meta.id
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+    let g: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(g["nodes"].as_array().unwrap().len(), 0);
+}

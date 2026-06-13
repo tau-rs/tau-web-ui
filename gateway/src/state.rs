@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 
 use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
@@ -49,6 +50,8 @@ pub struct Inner {
     runs: RwLock<HashMap<String, Run>>,
     /// run_id -> serve JSON-RPC id (for cancel).
     serve_ids: RwLock<HashMap<String, i64>>,
+    /// run_id -> cancellation token for in-flight workflow runs.
+    workflow_cancels: RwLock<HashMap<String, CancellationToken>>,
     /// run_id -> broadcast of WsMessage for live subscribers.
     channels: RwLock<HashMap<String, broadcast::Sender<WsMessage>>>,
 }
@@ -127,7 +130,7 @@ impl AppState {
         let graph_source: Box<dyn WorkflowGraphSource> = if is_mock {
             Box::new(graph::MockGraph)
         } else {
-            Box::new(graph::CliGraph)
+            Box::new(graph::CliGraph::new(project.clone()))
         };
         AppState(Arc::new(Inner {
             bin,
@@ -147,6 +150,7 @@ impl AppState {
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
+            workflow_cancels: RwLock::new(HashMap::new()),
             channels: RwLock::new(HashMap::new()),
         }))
     }
@@ -361,6 +365,7 @@ impl AppState {
             .insert(run_id.to_string(), run.clone());
         let _ = self.0.store.update_run(run).await;
         self.0.serve_ids.write().await.remove(run_id);
+        self.0.workflow_cancels.write().await.remove(run_id);
         self.publish(run_id, WsMessage::RunUpdate { run: run.clone() })
             .await;
     }
@@ -415,7 +420,16 @@ impl AppState {
             .or_insert_with(|| broadcast::channel(1024).0);
         self.0.store.write_header(&run).await?;
 
-        let mut rx = self.0.workflow_runner.run(workflow, input, run_id.clone());
+        let cancel = CancellationToken::new();
+        self.0
+            .workflow_cancels
+            .write()
+            .await
+            .insert(run_id.clone(), cancel.clone());
+        let mut rx = self
+            .0
+            .workflow_runner
+            .run(workflow, input, run_id.clone(), cancel);
         let state = self.clone();
         let run_id_spawn = run_id.clone();
         tokio::spawn(async move {
@@ -446,6 +460,12 @@ impl AppState {
                         } else {
                             RunStatus::Completed
                         };
+                        run.ended_at = Some(now());
+                        state.finalize(&run_id, &mut run).await;
+                        break;
+                    }
+                    WorkflowItem::Cancelled => {
+                        run.status = RunStatus::Cancelled;
                         run.ended_at = Some(now());
                         state.finalize(&run_id, &mut run).await;
                         break;
@@ -568,8 +588,8 @@ impl AppState {
 
     /// Structural graph from the mock seam, enriched per `agent.run` node with the
     /// agent's provider (its `llm_backend`, else the recommended backend) + tools.
-    pub fn workflow_graph(&self, name: &str) -> WorkflowGraph {
-        let mut g = self.0.graph_source.graph(name);
+    pub fn workflow_graph(&self, name: &str) -> Result<WorkflowGraph, crate::graph::GraphError> {
+        let mut g = self.0.graph_source.graph(name)?;
         let recommended = self.recommended_backend();
         for n in g.nodes.iter_mut() {
             if n.kind != "agent.run" {
@@ -593,7 +613,7 @@ impl AppState {
                 None => n.provider = Some(recommended.clone()),
             }
         }
-        g
+        Ok(g)
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
@@ -630,6 +650,12 @@ impl AppState {
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<bool> {
+        // Workflow runs cancel by firing their token (kills the tau child).
+        if let Some(tok) = self.0.workflow_cancels.read().await.get(run_id).cloned() {
+            tok.cancel();
+            return Ok(true);
+        }
+        // Agent runs cancel over the serve socket.
         let serve_id = self.0.serve_ids.read().await.get(run_id).copied();
         match serve_id {
             Some(id) => self.client().await?.cancel(id).await,

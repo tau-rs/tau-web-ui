@@ -2,8 +2,21 @@
 //! workflow's steps. Mirrors the tools/ship/checks seam. The real path
 //! (`CliGraph`) parses `workflows/*.toml` + the tau β.2 Workflow IR — empty here.
 
+mod workflow_toml;
+
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+
+/// Why building a workflow graph failed.
+#[derive(Debug, thiserror::Error)]
+pub enum GraphError {
+    #[error("workflow {0:?} not found")]
+    NotFound(String),
+    #[error("failed to parse workflow {name:?}: {detail}")]
+    Parse { name: String, detail: String },
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -33,10 +46,10 @@ pub struct WorkflowGraph {
     pub edges: Vec<WorkflowEdge>,
 }
 
-/// Source of a workflow's graph. Mock-first; the CLI path stays empty until tau
-/// ships the Workflow IR (β.2).
+/// Source of a workflow's graph. Parses the workflow TOML pipeline; the
+/// compiled-IR / bundle inspector is a separate deferred feature (issue #50).
 pub trait WorkflowGraphSource: Send + Sync {
-    fn graph(&self, name: &str) -> WorkflowGraph;
+    fn graph(&self, name: &str) -> Result<WorkflowGraph, GraphError>;
 }
 
 fn node(
@@ -68,8 +81,8 @@ fn edge(source: &str, target: &str) -> WorkflowEdge {
 pub struct MockGraph;
 
 impl WorkflowGraphSource for MockGraph {
-    fn graph(&self, name: &str) -> WorkflowGraph {
-        match name {
+    fn graph(&self, name: &str) -> Result<WorkflowGraph, GraphError> {
+        let g = match name {
             "nightly-research" => WorkflowGraph {
                 workflow: name.into(),
                 nodes: vec![
@@ -112,27 +125,32 @@ impl WorkflowGraphSource for MockGraph {
                     ),
                     node("render", "tool.call", None, Some("fs-write"), None),
                 ],
-                edges: vec![],
+                edges: vec![edge("collect", "render")],
             },
             other => WorkflowGraph {
                 workflow: other.into(),
                 nodes: vec![],
                 edges: vec![],
             },
-        }
+        };
+        Ok(g)
     }
 }
 
-/// CLI seam — not wired in v1 (the mock covers fake-tau-serve).
-pub struct CliGraph;
+/// Real graph source: parses `<project>/workflows/<name>.toml`.
+pub struct CliGraph {
+    project: PathBuf,
+}
+
+impl CliGraph {
+    pub fn new(project: PathBuf) -> Self {
+        CliGraph { project }
+    }
+}
 
 impl WorkflowGraphSource for CliGraph {
-    fn graph(&self, name: &str) -> WorkflowGraph {
-        WorkflowGraph {
-            workflow: name.into(),
-            nodes: vec![],
-            edges: vec![],
-        }
+    fn graph(&self, name: &str) -> Result<WorkflowGraph, GraphError> {
+        workflow_toml::parse_workflow_graph(&self.project, name)
     }
 }
 
@@ -142,7 +160,7 @@ mod tests {
 
     #[test]
     fn mock_seeds_nightly_research() {
-        let g = MockGraph.graph("nightly-research");
+        let g = MockGraph.graph("nightly-research").unwrap();
         assert_eq!(g.workflow, "nightly-research");
         assert_eq!(g.nodes.len(), 3);
         assert_eq!(g.nodes[0].label, "gather"); // label defaults to the step id
@@ -155,25 +173,29 @@ mod tests {
     }
 
     #[test]
-    fn mock_build_report_has_no_edges() {
-        let g = MockGraph.graph("build-report");
+    fn mock_build_report_has_sequence_edge() {
+        let g = MockGraph.graph("build-report").unwrap();
         assert_eq!(g.nodes.len(), 2);
         assert_eq!(g.nodes[0].kind, "agent.run"); // collect
         assert_eq!(g.nodes[1].kind, "tool.call"); // render
-        assert!(g.edges.is_empty());
+                                                  // execution order: collect runs, then render
+        assert_eq!(g.edges.len(), 1);
+        assert_eq!(g.edges[0].source, "collect");
+        assert_eq!(g.edges[0].target, "render");
     }
 
     #[test]
     fn mock_unknown_is_empty() {
-        let g = MockGraph.graph("nope");
+        let g = MockGraph.graph("nope").unwrap();
         assert_eq!(g.workflow, "nope");
         assert!(g.nodes.is_empty());
     }
 
     #[test]
-    fn cli_graph_is_empty() {
-        let g = CliGraph.graph("nightly-research");
-        assert!(g.nodes.is_empty());
-        assert!(g.edges.is_empty());
+    fn cli_graph_unknown_is_not_found() {
+        let err = CliGraph::new(std::path::PathBuf::from("/nonexistent"))
+            .graph("nightly-research")
+            .unwrap_err();
+        assert!(matches!(err, GraphError::NotFound(_)));
     }
 }

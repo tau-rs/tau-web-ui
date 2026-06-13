@@ -69,3 +69,32 @@ async fn failed_step_marks_run_failed() {
     }
     panic!("run never terminal");
 }
+
+#[tokio::test]
+async fn cancelling_a_workflow_marks_it_cancelled() {
+    let dir = tempfile::tempdir().unwrap();
+    let state = AppState::new(bin(), project(), true, RunStore::new(dir.path()).unwrap());
+    let id = state
+        .launch_workflow("nightly-research".into(), "topic".into())
+        .await
+        .unwrap();
+    // Cancel quickly — the mock sleeps 50ms before its first step.
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    let cancelled = state.cancel(&id).await.unwrap();
+    assert!(
+        cancelled,
+        "cancel should report success for an in-flight workflow"
+    );
+
+    let mut status = RunStatus::Running;
+    for _ in 0..200 {
+        if let Some(r) = state.get_run(&id).await {
+            if r.status != RunStatus::Running {
+                status = r.status;
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert_eq!(status, RunStatus::Cancelled);
+}
