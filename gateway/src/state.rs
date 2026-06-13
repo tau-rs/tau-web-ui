@@ -650,6 +650,12 @@ impl AppState {
     }
 
     pub async fn cancel(&self, run_id: &str) -> Result<bool> {
+        // Workflow runs cancel by firing their token (kills the tau child).
+        if let Some(tok) = self.0.workflow_cancels.read().await.get(run_id).cloned() {
+            tok.cancel();
+            return Ok(true);
+        }
+        // Agent runs cancel over the serve socket.
         let serve_id = self.0.serve_ids.read().await.get(run_id).copied();
         match serve_id {
             Some(id) => self.client().await?.cancel(id).await,
