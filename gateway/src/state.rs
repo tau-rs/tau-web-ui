@@ -93,7 +93,7 @@ impl AppState {
         let installed_skills: Box<dyn InstalledSkills> = if is_mock {
             Box::new(skills::MockInstalled::new())
         } else {
-            Box::new(skills::CliInstalled)
+            Box::new(skills::CliInstalled::new(bin.clone(), project.clone()))
         };
         let tools_source: Box<dyn ToolsSource> = if is_mock {
             Box::new(tools::MockTools)

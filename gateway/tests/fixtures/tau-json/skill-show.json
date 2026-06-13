@@ -1,0 +1,15 @@
+{
+  "name": "demo-skill",
+  "version": "0.1.0",
+  "description": "A tiny demo skill.",
+  "source": "file:///tmp/demo-skill.git",
+  "install_path": "/home/u/.tau/packages/demo-skill/0.1.0",
+  "capabilities": [
+    { "kind": "fs.read", "paths": ["${SKILL_DIR}/**"] }
+  ],
+  "requires_tools": [
+    { "name": "fs-read", "version_req": "^0.1" }
+  ],
+  "requires_skills": [],
+  "body": "# Demo Skill\nHello.\n"
+}

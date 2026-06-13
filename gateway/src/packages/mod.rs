@@ -131,7 +131,7 @@ impl PackageOps for MockOps {
 
 /// Accept only remote git URLs with a known scheme (or scp-like), plus local
 /// `file://` (for offline fixtures). Never a leading `-` (flag smuggling).
-fn is_safe_pkg_url(url: &str) -> bool {
+pub(crate) fn is_safe_pkg_url(url: &str) -> bool {
     if url.is_empty() || url.starts_with('-') {
         return false;
     }
@@ -146,7 +146,7 @@ fn is_safe_pkg_url(url: &str) -> bool {
 }
 
 /// A package name is a single token: `[A-Za-z0-9._-]+`, no leading `-`.
-fn is_safe_pkg_name(name: &str) -> bool {
+pub(crate) fn is_safe_pkg_name(name: &str) -> bool {
     !name.is_empty()
         && !name.starts_with('-')
         && name
