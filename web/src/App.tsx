@@ -7,6 +7,8 @@ import { PackagesPage } from "./packages/PackagesPage";
 import { ProvidersPage } from "./providers/ProvidersPage";
 import { RunsPage } from "./runs/RunsPage";
 import { TracePage } from "./trace/TracePage";
+import { SessionsPage } from "./sessions/SessionsPage";
+import { SessionDetailPage } from "./sessions/SessionDetailPage";
 import { ProjectsHome } from "./projects/ProjectsHome";
 import { AgentsIndexPage } from "./agents/AgentsIndexPage";
 import { AgentEditorPage } from "./agents/AgentEditorPage";
@@ -36,6 +38,8 @@ export function App() {
           <Route path="providers" element={<ProvidersPage />} />
           <Route path="runs" element={<RunsPage />} />
           <Route path="runs/:id" element={<TracePage />} />
+          <Route path="sessions" element={<SessionsPage />} />
+          <Route path="sessions/:id" element={<SessionDetailPage />} />
           <Route path="ship" element={<ShipPage />} />
           <Route path="health" element={<HealthPage />} />
         </Route>

@@ -24,6 +24,7 @@ const GROUPS: { title: string | null; items: Item[] }[] = [
     title: "Operate",
     items: [
       { to: "runs", label: "Runs", icon: "≣" },
+      { to: "sessions", label: "Sessions", icon: "◎" },
       { to: "ship", label: "Ship / Targets", icon: "⬡" },
       { to: "health", label: "Health", icon: "♥" },
     ],

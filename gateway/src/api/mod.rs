@@ -14,6 +14,7 @@ pub mod projects;
 pub mod providers;
 pub mod runs;
 pub mod scope;
+pub mod sessions;
 pub mod ship;
 pub mod skills;
 pub mod tools;
@@ -61,6 +62,9 @@ pub fn router(reg: ProjectRegistry) -> Router {
         )
         .route("/tools", get(tools::list))
         .route("/plugins", get(plugins::list))
+        .route("/sessions", get(sessions::list))
+        .route("/sessions/{id}", get(sessions::get_one))
+        .route("/sessions/{id}/export", get(sessions::export))
         .route("/targets", get(ship::targets))
         .route("/bundles", get(ship::bundles))
         .route("/build", post(ship::build))

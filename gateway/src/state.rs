@@ -19,6 +19,9 @@ use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, Verif
 use crate::plugins::{self, PluginDetail, PluginsSource};
 use crate::providers::{self, Provider};
 use crate::serve_client::{RunItem, ServeClient};
+use crate::sessions::{
+    self, ExportFormat, SessionDetail, SessionError, SessionSummary, SessionsSource,
+};
 use crate::ship::{self, BuildError, Bundle, ShipSource, Target};
 use crate::skills::{self, InstalledSkills, SkillDetail, SkillSummary};
 use crate::store::{RunStore, TraceReplay};
@@ -44,6 +47,7 @@ pub struct Inner {
     ship_source: Box<dyn ShipSource>,
     check_source: Box<dyn CheckSource>,
     graph_source: Box<dyn WorkflowGraphSource>,
+    sessions_source: Box<dyn SessionsSource>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -132,6 +136,11 @@ impl AppState {
         } else {
             Box::new(graph::CliGraph::new(project.clone()))
         };
+        let sessions_source: Box<dyn SessionsSource> = if is_mock {
+            Box::new(sessions::MockSessions::new())
+        } else {
+            Box::new(sessions::CliSessions::new(bin.clone(), project.clone()))
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -147,6 +156,7 @@ impl AppState {
             ship_source,
             check_source,
             graph_source,
+            sessions_source,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -584,6 +594,18 @@ impl AppState {
 
     pub fn checks(&self) -> CheckReport {
         self.0.check_source.report()
+    }
+
+    pub fn list_sessions(&self) -> Result<Vec<SessionSummary>, SessionError> {
+        self.0.sessions_source.list()
+    }
+
+    pub fn show_session(&self, id: &str) -> Result<SessionDetail, SessionError> {
+        self.0.sessions_source.show(id)
+    }
+
+    pub fn export_session(&self, id: &str, fmt: ExportFormat) -> Result<Vec<u8>, SessionError> {
+        self.0.sessions_source.export(id, fmt)
     }
 
     /// Structural graph from the mock seam, enriched per `agent.run` node with the
