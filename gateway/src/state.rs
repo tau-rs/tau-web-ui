@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio_util::sync::CancellationToken;
 
 use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
@@ -49,6 +50,8 @@ pub struct Inner {
     runs: RwLock<HashMap<String, Run>>,
     /// run_id -> serve JSON-RPC id (for cancel).
     serve_ids: RwLock<HashMap<String, i64>>,
+    /// run_id -> cancellation token for in-flight workflow runs.
+    workflow_cancels: RwLock<HashMap<String, CancellationToken>>,
     /// run_id -> broadcast of WsMessage for live subscribers.
     channels: RwLock<HashMap<String, broadcast::Sender<WsMessage>>>,
 }
@@ -147,6 +150,7 @@ impl AppState {
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
+            workflow_cancels: RwLock::new(HashMap::new()),
             channels: RwLock::new(HashMap::new()),
         }))
     }
@@ -361,6 +365,7 @@ impl AppState {
             .insert(run_id.to_string(), run.clone());
         let _ = self.0.store.update_run(run).await;
         self.0.serve_ids.write().await.remove(run_id);
+        self.0.workflow_cancels.write().await.remove(run_id);
         self.publish(run_id, WsMessage::RunUpdate { run: run.clone() })
             .await;
     }
@@ -415,7 +420,16 @@ impl AppState {
             .or_insert_with(|| broadcast::channel(1024).0);
         self.0.store.write_header(&run).await?;
 
-        let mut rx = self.0.workflow_runner.run(workflow, input, run_id.clone());
+        let cancel = CancellationToken::new();
+        self.0
+            .workflow_cancels
+            .write()
+            .await
+            .insert(run_id.clone(), cancel.clone());
+        let mut rx = self
+            .0
+            .workflow_runner
+            .run(workflow, input, run_id.clone(), cancel);
         let state = self.clone();
         let run_id_spawn = run_id.clone();
         tokio::spawn(async move {
@@ -446,6 +460,12 @@ impl AppState {
                         } else {
                             RunStatus::Completed
                         };
+                        run.ended_at = Some(now());
+                        state.finalize(&run_id, &mut run).await;
+                        break;
+                    }
+                    WorkflowItem::Cancelled => {
+                        run.status = RunStatus::Cancelled;
                         run.ended_at = Some(now());
                         state.finalize(&run_id, &mut run).await;
                         break;

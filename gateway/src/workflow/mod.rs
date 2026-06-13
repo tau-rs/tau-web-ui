@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::adapters::log::StepRecord;
 
@@ -13,16 +14,19 @@ use crate::adapters::log::StepRecord;
 pub enum WorkflowItem {
     Step(Box<StepRecord>),
     Done,
+    Cancelled,
     Error(String),
 }
 
 pub trait WorkflowRunner: Send + Sync {
-    /// Start the workflow; returns a receiver of items (the impl spawns its own task).
+    /// Start the workflow; returns a receiver of items (the impl spawns its own
+    /// task). Firing `cancel` requests termination (the impl emits `Cancelled`).
     fn run(
         &self,
         workflow: String,
         input: String,
         run_id: String,
+        cancel: CancellationToken,
     ) -> mpsc::UnboundedReceiver<WorkflowItem>;
 }
 
@@ -67,13 +71,20 @@ impl WorkflowRunner for MockRunner {
         workflow: String,
         input: String,
         run_id: String,
+        cancel: CancellationToken,
     ) -> mpsc::UnboundedReceiver<WorkflowItem> {
         let (tx, rx) = mpsc::unbounded_channel();
         tokio::spawn(async move {
             for (i, (step_id, kind, output, status, delay)) in
                 script(&workflow).into_iter().enumerate()
             {
-                tokio::time::sleep(Duration::from_millis(delay)).await;
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_millis(delay)) => {}
+                    _ = cancel.cancelled() => {
+                        let _ = tx.send(WorkflowItem::Cancelled);
+                        return;
+                    }
+                }
                 let started = now();
                 let ended = now();
                 let rec = StepRecord {
@@ -125,12 +136,12 @@ impl WorkflowRunner for CliRunner {
         workflow: String,
         _input: String,
         _run_id: String,
+        _cancel: CancellationToken,
     ) -> mpsc::UnboundedReceiver<WorkflowItem> {
         let (tx, rx) = mpsc::unbounded_channel();
         tokio::spawn(async move {
             let _ = tx.send(WorkflowItem::Error(format!(
-                "real-tau workflow run not wired yet (run `{workflow}` via the tau CLI); \
-                 the gateway observes workflows only with fake-tau-serve in v1"
+                "real-tau workflow run not wired yet (workflow {workflow})"
             )));
         });
         rx
@@ -143,7 +154,12 @@ mod tests {
 
     #[tokio::test]
     async fn mock_runner_emits_steps_then_done() {
-        let mut rx = MockRunner.run("nightly-research".into(), "topic".into(), "R1".into());
+        let mut rx = MockRunner.run(
+            "nightly-research".into(),
+            "topic".into(),
+            "R1".into(),
+            tokio_util::sync::CancellationToken::new(),
+        );
         let mut kinds = vec![];
         let mut done = false;
         while let Some(item) = rx.recv().await {
@@ -153,6 +169,7 @@ mod tests {
                     done = true;
                     break;
                 }
+                WorkflowItem::Cancelled => panic!("unexpected cancel"),
                 WorkflowItem::Error(e) => panic!("unexpected error {e}"),
             }
         }
@@ -162,7 +179,12 @@ mod tests {
 
     #[tokio::test]
     async fn build_report_has_a_failed_step() {
-        let mut rx = MockRunner.run("build-report".into(), "x".into(), "R2".into());
+        let mut rx = MockRunner.run(
+            "build-report".into(),
+            "x".into(),
+            "R2".into(),
+            tokio_util::sync::CancellationToken::new(),
+        );
         let mut statuses = vec![];
         while let Some(item) = rx.recv().await {
             match item {
