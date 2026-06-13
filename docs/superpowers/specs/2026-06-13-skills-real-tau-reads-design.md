@@ -91,11 +91,15 @@ there, and neither `SkillSummary` nor `SkillDetail` carries the field).
 (`packages/mod.rs:132-146`, rejects empty / leading-`-` / unknown scheme) rather than
 duplicating it. Make it `pub(crate)` if not already.
 
-### Local vs installed dedup
+### Local vs installed precedence
 
-If a skill name exists both as a local editable dir and a tau-installed package, the
-**local** one wins (dedup by name in the `list()` composition, `skills/mod.rs:385-389`,
-local appended first).
+`read()` (`skills/mod.rs` composition) tries `read_local` first and only falls back to the
+installed seam, so **detail navigation always prefers the local/editable skill** when a
+name exists in both. `list()` simply concatenates `list_local` then `installed.list()` and
+does **not** dedup by name — a name present in *both* a local dir and as a tau-installed
+package would appear as two rows. This is acceptable for D2b: local editable skills and
+tau-installed skill *packages* occupy different namespaces in practice, so collisions are
+unlikely. True list-level dedup is a non-goal here (possible follow-up if it ever bites).
 
 ### Error handling
 
