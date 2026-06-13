@@ -22,7 +22,7 @@ async fn serve_kind_mock_override_forces_mock_sidecars_even_with_real_bin_name()
         .await
         .unwrap();
     assert!(
-        !state.list_tools().is_empty(),
+        !state.list_tools().tools.is_empty(),
         "mock sidecar seam should yield deterministic tools"
     );
 }
@@ -38,5 +38,5 @@ async fn load_defaults_to_filename_autodetect() {
         .state(tau_gateway::projects::WORKSPACE_ID)
         .await
         .unwrap();
-    assert!(state.list_tools().is_empty());
+    assert!(state.list_tools().tools.is_empty());
 }

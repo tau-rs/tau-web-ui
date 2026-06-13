@@ -6,8 +6,21 @@ import { ToolsPage } from "./ToolsPage";
 import { ProjectProvider } from "../app/project-context";
 
 beforeEach(() => {
-  // both SkillsIndex and ToolsTab fetch on mount — stub to empty arrays
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+  // SkillsIndex wants an array; ToolsTab/PluginsTab want their envelopes.
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true,
+        json: async () =>
+          url.endsWith("/skills")
+            ? []
+            : url.endsWith("/tools")
+              ? { tools: [], error_count: 0 }
+              : { plugins: [], errors: [] },
+      }),
+    ),
+  );
 });
 
 function renderAt() {
@@ -23,7 +36,7 @@ function renderAt() {
 }
 
 describe("ToolsPage tabs", () => {
-  it("switches Skills → Tools → Plugins (gated tab)", async () => {
+  it("switches Skills → Tools → Plugins (no longer gated)", async () => {
     const user = userEvent.setup();
     renderAt();
     // Skills tab shows the import-skill control
@@ -34,8 +47,9 @@ describe("ToolsPage tabs", () => {
     expect(screen.getByText("provides")).toBeInTheDocument();
     expect(screen.queryByLabelText("import skill git url")).not.toBeInTheDocument();
 
-    // Plugins is now a real, navigable tab → renders the gated PluginsTab
+    // Plugins is a real tab now: empty envelope → "No plugins.", and no gated badge.
     await user.click(screen.getByRole("button", { name: /plugins/i }));
-    expect(screen.getByText(/mock data/i)).toBeInTheDocument();
+    expect(screen.getByText(/no plugins/i)).toBeInTheDocument();
+    expect(screen.queryByText(/gated/i)).toBeNull();
   });
 });

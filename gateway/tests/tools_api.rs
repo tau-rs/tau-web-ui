@@ -41,8 +41,9 @@ async fn tools_list_over_http() {
         .unwrap();
     assert_eq!(resp.status(), reqwest::StatusCode::OK);
     let list: serde_json::Value = resp.json().await.unwrap();
-    let arr = list.as_array().unwrap();
+    let arr = list["tools"].as_array().unwrap();
     assert_eq!(arr.len(), 3);
+    assert_eq!(list["error_count"], 0);
     let fsr = arr.iter().find(|t| t["name"] == "fs-read").unwrap();
     assert_eq!(fsr["provides"], "tool");
     assert_eq!(fsr["capabilities"][0]["kind"], "fs.read");

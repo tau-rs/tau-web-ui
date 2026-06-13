@@ -1,8 +1,8 @@
 use axum::Json;
 
 use crate::api::scope::Scoped;
-use crate::tools::ToolDetail;
+use crate::tools::ToolCatalog;
 
-pub async fn list(Scoped(state): Scoped) -> Json<Vec<ToolDetail>> {
+pub async fn list(Scoped(state): Scoped) -> Json<ToolCatalog> {
     Json(state.list_tools())
 }

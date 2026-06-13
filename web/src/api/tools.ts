@@ -1,4 +1,4 @@
-import type { ToolDetail } from "../types/ToolDetail";
+import type { ToolCatalog } from "../types/ToolCatalog";
 import { request, scopedPath } from "./client";
 
-export const listTools = (pid: string) => request<ToolDetail[]>(scopedPath(pid, "/tools"));
+export const listTools = (pid: string) => request<ToolCatalog>(scopedPath(pid, "/tools"));
