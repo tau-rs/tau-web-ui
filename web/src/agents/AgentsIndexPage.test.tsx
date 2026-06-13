@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AgentsIndexPage } from "./AgentsIndexPage";
 import { ProjectProvider } from "../app/project-context";
+import { useNotifications } from "../notify/notify";
 
 const agents = [
   {
@@ -51,6 +52,15 @@ describe("AgentsIndexPage", () => {
     expect(screen.getByRole("link", { name: "researcher" })).toHaveAttribute(
       "href",
       "/projects/demo/agents/researcher",
+    );
+  });
+
+  it("shows an error toast when the agent list load fails", async () => {
+    useNotifications.setState({ items: [] });
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("boom")));
+    renderAt();
+    await waitFor(() =>
+      expect(useNotifications.getState().items.some((n) => n.kind === "error")).toBe(true),
     );
   });
 });

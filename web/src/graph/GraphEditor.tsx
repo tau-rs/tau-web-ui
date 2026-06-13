@@ -26,6 +26,7 @@ import type { GraphActions } from "./GraphActions";
 import { StepPalette } from "./StepPalette";
 import { listAgents } from "../api/agents";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 export function GraphEditor() {
   const pid = useProjectId();
@@ -40,7 +41,7 @@ export function GraphEditor() {
   useEffect(() => {
     getProviders(pid)
       .then((ps) => setRecommended(ps.find((p) => p.recommended)?.name ?? ""))
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load providers", e));
   }, [pid]);
 
   const [agents, setAgents] = useState<string[]>([]);
@@ -55,7 +56,7 @@ export function GraphEditor() {
   useEffect(() => {
     listAgents(pid)
       .then((as) => setAgents(as.map((a) => a.id)))
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load agents", e));
   }, [pid]);
 
   useEffect(() => {
@@ -64,7 +65,7 @@ export function GraphEditor() {
         setWorkflows(ws);
         setSelected((cur) => cur || ws[0] || "");
       })
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load workflows", e));
   }, [pid]);
 
   useEffect(() => {
@@ -77,7 +78,7 @@ export function GraphEditor() {
         setSelId(flow.nodes[0]?.id ?? null);
         setEdit(false);
       })
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load workflow graph", e));
   }, [selected, pid]);
 
   const onNodesChange = useCallback(

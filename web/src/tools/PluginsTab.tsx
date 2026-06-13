@@ -4,6 +4,7 @@ import type { PluginDetail } from "../types/PluginDetail";
 import type { ProtocolFrame } from "../types/ProtocolFrame";
 import { listPlugins } from "../api/plugins";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 export function PluginsTab() {
   const pid = useProjectId();
@@ -16,7 +17,7 @@ export function PluginsTab() {
         setCat(c);
         setSelected((cur) => cur ?? c.plugins[0]?.name ?? null);
       })
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load plugins", e));
   }, [pid]);
 
   const current = cat.plugins.find((p) => p.name === selected) ?? null;
