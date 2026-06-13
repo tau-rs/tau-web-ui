@@ -161,6 +161,47 @@ export function SkillEditorPage() {
             </div>
           </>
         )}
+        {readOnly &&
+          (s.capabilities.length > 0 ||
+            s.requires_tools.length > 0 ||
+            s.requires_skills.length > 0) && (
+            <>
+              {s.capabilities.length > 0 && (
+                <div>
+                  <label className={label}>capabilities</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {s.capabilities.map((c, i) => (
+                      <span
+                        key={i}
+                        className="rounded border border-border bg-bg px-2 py-1 font-mono text-[11px] text-muted"
+                      >
+                        {c.kind}
+                        {Object.entries(c.fields)
+                          .map(([k, vals]) => ` · ${k}: ${vals.join(", ")}`)
+                          .join("")}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(s.requires_tools.length > 0 || s.requires_skills.length > 0) && (
+                <div>
+                  <label className={label}>requires</label>
+                  <div className="space-y-1">
+                    {[...s.requires_tools, ...s.requires_skills].map((d, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 rounded-md border border-border bg-bg px-2.5 py-1.5 font-mono text-xs"
+                      >
+                        <span className="font-semibold text-fg">{d.name}</span>
+                        <span className="ml-auto text-muted">{d.version ?? ""}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
       </div>
 
       {error && <div className="text-xs text-st-error">{error}</div>}
