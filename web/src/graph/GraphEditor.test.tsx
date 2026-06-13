@@ -95,6 +95,19 @@ beforeEach(() => {
             built_at: null,
           }),
         });
+      if (url.endsWith("/ir"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            hash_kind: "lowered",
+            canonical_ir_hash: "deadbeefcafef00d",
+            target: "darwin-native-strict",
+            tau_version: "0.4.1-mock",
+            agents: [{ id: "researcher", llm_backend: "anthropic", tools: ["web-search"] }],
+            tools: [{ id: "web-search", capabilities: ["net.outbound"] }],
+            edges: [{ from: "researcher", to: "web-search", kind: "subflow" }],
+          }),
+        });
       return Promise.resolve({ ok: true, json: async () => ({}) });
     }),
   );
@@ -138,5 +151,18 @@ describe("GraphEditor", () => {
     expect(screen.getByText(/⚡ anthropic/)).toBeInTheDocument();
     expect(screen.getByText(/✓ recommended/)).toBeInTheDocument();
     expect(screen.getByText("web-search")).toBeInTheDocument();
+  });
+
+  it("toggles to the Compiled IR view and shows target + hash", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectProvider pid="demo">
+        <GraphEditor />
+      </ProjectProvider>,
+    );
+    const tab = await screen.findByRole("button", { name: /compiled ir/i });
+    await user.click(tab);
+    await waitFor(() => expect(screen.getByText(/darwin-native-strict/)).toBeInTheDocument());
+    expect(screen.getByText(/deadbeef/)).toBeInTheDocument();
   });
 });

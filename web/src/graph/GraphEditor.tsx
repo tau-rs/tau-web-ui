@@ -13,8 +13,10 @@ import type { WorkflowGraph } from "../types/WorkflowGraph";
 import { getWorkflows } from "../api/client";
 import { getWorkflowGraph } from "../api/graph";
 import { getProviders } from "../api/providers";
-import { workflowToFlow, type StepNodeData } from "./layout";
+import { workflowToFlow, irToFlow, type StepNodeData } from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
+import { getCompiledIr } from "../api/ir";
+import type { CompiledIr } from "../types/CompiledIr";
 import {
   duplicateNode,
   toggleDisabled,
@@ -38,6 +40,8 @@ export function GraphEditor() {
   const [selId, setSelId] = useState<string | null>(null);
   const [building, setBuilding] = useState(false);
   const [lastHash, setLastHash] = useState<string | null>(null);
+  const [view, setView] = useState<"source" | "compiled">("source");
+  const [ir, setIr] = useState<CompiledIr | null>(null);
 
   async function onBuild() {
     setBuilding(true);
@@ -98,6 +102,23 @@ export function GraphEditor() {
       .catch(() => {});
   }, [selected, pid]);
 
+  // fetch the compiled IR when entering the compiled view (or on project switch)
+  useEffect(() => {
+    if (view !== "compiled") return;
+    getCompiledIr(pid)
+      .then(setIr)
+      .catch(() => {});
+  }, [view, pid]);
+
+  // recompute the IR layout + workflow-agent highlight from the loaded IR + source nodes
+  const irFlow = useMemo(() => {
+    if (!ir) return { nodes: [] as Node<StepNodeData>[], edges: [] as Edge[] };
+    const wfAgents = new Set(nodes.map((n) => n.data.agent).filter(Boolean) as string[]);
+    return irToFlow(ir, wfAgents);
+  }, [ir, nodes]);
+  const irNodes = irFlow.nodes;
+  const irEdges = irFlow.edges;
+
   const onNodesChange = useCallback(
     (c: NodeChange[]) => setNodes((ns) => applyNodeChanges(c, ns) as Node<StepNodeData>[]),
     [],
@@ -111,7 +132,8 @@ export function GraphEditor() {
     [],
   );
 
-  const current = nodes.find((n) => n.id === selId) ?? null;
+  const activeNodes = view === "compiled" ? irNodes : nodes;
+  const current = activeNodes.find((n) => n.id === selId) ?? null;
 
   function updateCurrent(patch: Partial<StepNodeData>) {
     if (!current) return;
@@ -190,14 +212,49 @@ export function GraphEditor() {
             </option>
           ))}
         </select>
-        <button
-          onClick={() => setEdit((v) => !v)}
-          className={`rounded-md px-3 py-1 text-xs font-semibold ${
-            edit ? "bg-accent text-accent-fg" : "border border-border text-muted hover:text-fg"
-          }`}
+        <div
+          role="group"
+          aria-label="graph view"
+          className="ml-2 flex overflow-hidden rounded-md border border-border text-xs"
         >
-          {edit ? "Done" : "Edit"}
-        </button>
+          <button
+            type="button"
+            aria-pressed={view === "source"}
+            onClick={() => {
+              setView("source");
+              setSelId(null);
+            }}
+            className={`px-2 py-1 ${view === "source" ? "bg-accent text-accent-fg" : "text-muted"}`}
+          >
+            Source
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === "compiled"}
+            onClick={() => {
+              setView("compiled");
+              setSelId(null);
+            }}
+            className={`px-2 py-1 ${view === "compiled" ? "bg-accent text-accent-fg" : "text-muted"}`}
+          >
+            Compiled IR
+          </button>
+        </div>
+        {view === "compiled" && ir && (
+          <span className="font-mono text-[10px] text-muted">
+            {ir.target} · {ir.hash_kind} {ir.canonical_ir_hash.slice(0, 8)}
+          </span>
+        )}
+        {view === "source" && (
+          <button
+            onClick={() => setEdit((v) => !v)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold ${
+              edit ? "bg-accent text-accent-fg" : "border border-border text-muted hover:text-fg"
+            }`}
+          >
+            {edit ? "Done" : "Edit"}
+          </button>
+        )}
         <button
           onClick={onBuild}
           disabled={building}
@@ -221,13 +278,13 @@ export function GraphEditor() {
       <div className="grid grid-cols-[1fr_190px] gap-3">
         <div ref={wrapRef} className="relative">
           <GraphCanvas
-            nodes={nodes}
-            edges={edges}
-            editable={edit}
+            nodes={view === "compiled" ? irNodes : nodes}
+            edges={view === "compiled" ? irEdges : edges}
+            editable={view === "source" && edit}
             actions={actions}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
+            onNodesChange={view === "source" ? onNodesChange : () => {}}
+            onEdgesChange={view === "source" ? onEdgesChange : () => {}}
+            onConnect={view === "source" ? onConnect : () => {}}
             onSelect={(id) => {
               setSelId(id);
               if (id === null) setPalette(null);
@@ -300,6 +357,19 @@ export function GraphEditor() {
                     {current.data.tools.map((t) => (
                       <span key={t} className="rounded border border-border px-1 text-[10px]">
                         {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {current.data.caps && current.data.caps.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 text-muted">
+                    caps
+                    {current.data.caps.map((c) => (
+                      <span
+                        key={c}
+                        className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent"
+                      >
+                        {c}
                       </span>
                     ))}
                   </div>

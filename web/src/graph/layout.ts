@@ -1,5 +1,6 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { WorkflowGraph } from "../types/WorkflowGraph";
+import type { CompiledIr } from "../types/CompiledIr";
 
 export interface StepNodeData extends Record<string, unknown> {
   label: string;
@@ -9,6 +10,7 @@ export interface StepNodeData extends Record<string, unknown> {
   input: string | null;
   provider: string | null;
   tools: string[];
+  caps?: string[]; // tool.call nodes (compiled IR view): capability requirements
   disabled?: boolean;
 }
 
@@ -67,4 +69,52 @@ export function workflowToFlow(graph: WorkflowGraph): {
   }));
 
   return { nodes, edges };
+}
+
+/**
+ * Lay out the compiled project IR: agents as `agent.run` nodes, tools as
+ * `tool.call` nodes, subflow edges between them. Agents NOT in `workflowAgents`
+ * are dimmed (they belong to the project but not the selected workflow).
+ */
+export function irToFlow(
+  ir: CompiledIr,
+  workflowAgents: Set<string>,
+): { nodes: Node<StepNodeData>[]; edges: Edge[] } {
+  const graph: WorkflowGraph = {
+    workflow: "",
+    nodes: [
+      ...ir.agents.map((a) => ({
+        id: a.id,
+        kind: "agent.run",
+        label: a.id,
+        agent: a.id,
+        tool: null,
+        input: null,
+        provider: a.llm_backend,
+        tools: a.tools,
+      })),
+      ...ir.tools.map((t) => ({
+        id: t.id,
+        kind: "tool.call",
+        label: t.id,
+        agent: null,
+        tool: t.id,
+        input: null,
+        provider: null,
+        tools: [],
+      })),
+    ],
+    edges: ir.edges.map((e) => ({ source: e.from, target: e.to })),
+  };
+  const flow = workflowToFlow(graph);
+  const caps = new Map(ir.tools.map((t) => [t.id, t.capabilities]));
+  flow.nodes = flow.nodes.map((n) => ({
+    ...n,
+    data: {
+      ...n.data,
+      caps: n.data.kind === "tool.call" ? (caps.get(n.id) ?? []) : undefined,
+    },
+    style: n.data.kind === "agent.run" && !workflowAgents.has(n.id) ? { opacity: 0.4 } : undefined,
+  }));
+  return flow;
 }
