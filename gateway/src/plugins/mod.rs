@@ -1,13 +1,17 @@
-//! Plugins view: a gated, read-only catalog of plugin binaries (the executables
-//! behind packages that provide a tau port). Mock data — tau has no plugin
-//! introspection yet — so this mirrors the tools `MockTools`/`CliTools` seam.
+//! Plugins view: a read-only catalog of plugin binaries behind packages that
+//! provide a tau port, assembled from `introspect`'s describe sweep. Real on the
+//! CLI path (`CliPlugins`); `MockPlugins` covers fake-tau-serve.
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use ts_rs::TS;
 
+use crate::introspect::{
+    tool_input_schema, Classified, PluginError, PluginInfo, PluginIntrospector,
+};
 use crate::skills::Capability;
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -49,10 +53,17 @@ pub struct PluginDetail {
     pub transcript: Vec<ProtocolFrame>,
 }
 
-/// Source of the plugin catalog. Mock-first; the CLI path stays empty until tau
-/// exposes plugin introspection.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PluginCatalog {
+    pub plugins: Vec<PluginDetail>,
+    pub errors: Vec<PluginError>,
+}
+
+/// Source of the plugin catalog. `MockPlugins` is deterministic; `CliPlugins`
+/// projects the real describe sweep.
 pub trait PluginsSource: Send + Sync {
-    fn catalog(&self) -> Vec<PluginDetail>;
+    fn catalog(&self) -> PluginCatalog;
 }
 
 fn cap(kind: &str, param: &str, vals: &[&str]) -> Capability {
@@ -132,8 +143,8 @@ fn assemble(
 pub struct MockPlugins;
 
 impl PluginsSource for MockPlugins {
-    fn catalog(&self) -> Vec<PluginDetail> {
-        vec![
+    fn catalog(&self) -> PluginCatalog {
+        let plugins = vec![
             assemble(
                 "fs-read",
                 "1.0.0",
@@ -222,24 +233,90 @@ impl PluginsSource for MockPlugins {
                     ),
                 ],
             ),
-        ]
+        ];
+        PluginCatalog {
+            plugins,
+            errors: vec![],
+        }
     }
 }
 
-/// Return the plugin catalog. Unlike tools' `list_tools`, there is no per-project
-/// computation — the describe/transcript are project-independent mock data — so
-/// this is a thin pass-through that gives `CliPlugins` a single composition point
-/// for the future real path.
-pub fn list_plugins(source: &dyn PluginsSource) -> Vec<PluginDetail> {
+/// Return the plugin catalog (plugins + introspection errors).
+pub fn list_plugins(source: &dyn PluginsSource) -> PluginCatalog {
     source.catalog()
 }
 
-/// CLI seam — not wired in v1 (the mock covers fake-tau-serve).
-pub struct CliPlugins;
+/// Build a `PluginDetail` from one parsed describe result. Capabilities are
+/// empty — `tau plugin describe` does not call `tool.describe_capabilities`.
+fn plugin_detail_from(info: &PluginInfo) -> PluginDetail {
+    let tool = if info.port == "Tool" {
+        Some(ToolSchema {
+            name: info.plugin_name.clone(),
+            input_schema: tool_input_schema(&info.tool_params),
+        })
+    } else {
+        None
+    };
+    let describe = PluginDescribe {
+        port: info.port.clone(),
+        protocol_version: info.protocol_version,
+        tool,
+        capabilities: vec![],
+    };
+    // Synthesize a 2-frame transcript so the protocol pane isn't dead.
+    let transcript = vec![
+        frame(
+            "out",
+            "meta.handshake",
+            json!({ "protocol_version": info.protocol_version }),
+        ),
+        frame(
+            "in",
+            "result",
+            json!({
+                "plugin_name": info.plugin_name,
+                "provides": info.port,
+                "protocol_version": info.protocol_version,
+                "methods": info.methods,
+            }),
+        ),
+    ];
+    PluginDetail {
+        name: info.package.clone(),
+        version: info.package_version.clone(),
+        source: info.source.clone(),
+        kind: info.kind.clone(),
+        binary: info.binary_path.clone(),
+        port: info.port.clone(),
+        protocol_version: info.protocol_version,
+        describe,
+        transcript,
+    }
+}
+
+/// Real-tau plugin seam: projects the shared describe sweep into the envelope.
+pub struct CliPlugins {
+    introspector: Arc<PluginIntrospector>,
+}
+
+impl CliPlugins {
+    pub fn new(introspector: Arc<PluginIntrospector>) -> Self {
+        CliPlugins { introspector }
+    }
+}
 
 impl PluginsSource for CliPlugins {
-    fn catalog(&self) -> Vec<PluginDetail> {
-        vec![]
+    fn catalog(&self) -> PluginCatalog {
+        let mut plugins = vec![];
+        let mut errors = vec![];
+        for c in self.introspector.sweep() {
+            match c {
+                Classified::Plugin(info) => plugins.push(plugin_detail_from(&info)),
+                Classified::DataOnly => {}
+                Classified::Failed(e) => errors.push(e),
+            }
+        }
+        PluginCatalog { plugins, errors }
     }
 }
 
@@ -249,7 +326,7 @@ mod tests {
 
     #[test]
     fn mock_catalog_seeds_four_plugins() {
-        let cat = MockPlugins.catalog();
+        let cat = MockPlugins.catalog().plugins;
         let names: Vec<&str> = cat.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(names, vec!["fs-read", "shell", "web-search", "anthropic"]);
 
@@ -273,13 +350,12 @@ mod tests {
             .transcript
             .iter()
             .any(|f| f.method == "llm.generate"));
-
-        assert!(CliPlugins.catalog().is_empty());
     }
 
     #[test]
     fn list_plugins_returns_catalog() {
-        assert_eq!(list_plugins(&MockPlugins).len(), 4);
-        assert!(list_plugins(&CliPlugins).is_empty());
+        let cat = list_plugins(&MockPlugins);
+        assert_eq!(cat.plugins.len(), 4);
+        assert!(cat.errors.is_empty());
     }
 }

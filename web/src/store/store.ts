@@ -23,6 +23,7 @@ import { errorMessage } from "../notify/notify";
 interface TraceState {
   run: Run;
   spans: Span[];
+  events: Event[];
 }
 
 interface AppStore {
@@ -227,7 +228,7 @@ export const useStore = create<AppStore>((set, get) => {
       // Replay snapshot first (works even with no live engine — AC#5).
       const trace = await getTrace(pid, id);
       set({
-        currentTrace: { run: trace.run, spans: trace.spans },
+        currentTrace: { run: trace.run, spans: trace.spans, events: trace.events ?? [] },
         assistantText: assistantTextFromEvents(trace.events),
         selectedSpanId: null,
       });
@@ -257,7 +258,7 @@ export const useStore = create<AppStore>((set, get) => {
       switch (m.type) {
         case "snapshot":
           set({
-            currentTrace: { run: m.run, spans: m.spans },
+            currentTrace: { run: m.run, spans: m.spans, events: m.events },
             assistantText: assistantTextFromEvents(m.events),
           });
           break;
@@ -267,11 +268,22 @@ export const useStore = create<AppStore>((set, get) => {
           set({ currentTrace: { ...state.currentTrace, spans } });
           break;
         }
-        case "event":
-          if (m.event.kind === "text_delta") {
+        case "event": {
+          if (state.currentTrace) {
+            const events = [...state.currentTrace.events, m.event];
+            set({
+              currentTrace: { ...state.currentTrace, events },
+              ...(m.event.kind === "text_delta"
+                ? { assistantText: state.assistantText + deltaText(m.event.payload) }
+                : {}),
+            });
+          } else if (m.event.kind === "text_delta") {
+            // No active trace yet — preserve the original behavior of still
+            // accumulating assistant text.
             set({ assistantText: state.assistantText + deltaText(m.event.payload) });
           }
           break;
+        }
         case "run_update":
           if (state.currentTrace) {
             set({ currentTrace: { ...state.currentTrace, run: m.run } });

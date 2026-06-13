@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { PluginCatalog } from "../types/PluginCatalog";
 import type { PluginDetail } from "../types/PluginDetail";
 import type { ProtocolFrame } from "../types/ProtocolFrame";
 import { listPlugins } from "../api/plugins";
@@ -6,29 +7,42 @@ import { useProjectId } from "../app/project-context";
 
 export function PluginsTab() {
   const pid = useProjectId();
-  const [plugins, setPlugins] = useState<PluginDetail[]>([]);
+  const [cat, setCat] = useState<PluginCatalog>({ plugins: [], errors: [] });
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
     listPlugins(pid)
-      .then((p) => {
-        setPlugins(p);
-        setSelected((cur) => cur ?? p[0]?.name ?? null);
+      .then((c) => {
+        setCat(c);
+        setSelected((cur) => cur ?? c.plugins[0]?.name ?? null);
       })
       .catch(() => {});
   }, [pid]);
 
-  const current = plugins.find((p) => p.name === selected) ?? null;
+  const current = cat.plugins.find((p) => p.name === selected) ?? null;
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-        <span aria-hidden>⚠</span>
-        <span>Mock data — gated until tau exposes plugin introspection.</span>
-      </div>
+      {cat.errors.length > 0 && (
+        <ul className="space-y-0.5">
+          {cat.errors.map((e) => (
+            <li
+              key={e.package}
+              className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800"
+            >
+              <span aria-hidden>⚠</span>
+              <span className="font-medium">{e.package}</span>
+              <span className="rounded bg-amber-100 px-1 text-[8px] font-bold uppercase">
+                {e.kind}
+              </span>
+              <span className="truncate text-muted">{e.message}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="grid grid-cols-[160px_1fr] gap-3">
         <ul className="space-y-0.5">
-          {plugins.map((p) => (
+          {cat.plugins.map((p) => (
             <li key={p.name}>
               <button
                 onClick={() => setSelected(p.name)}

@@ -41,8 +41,9 @@ async fn plugins_list_over_http() {
         .unwrap();
     assert_eq!(resp.status(), reqwest::StatusCode::OK);
     let list: serde_json::Value = resp.json().await.unwrap();
-    let arr = list.as_array().unwrap();
+    let arr = list["plugins"].as_array().unwrap();
     assert_eq!(arr.len(), 4);
+    assert!(list["errors"].as_array().unwrap().is_empty());
 
     let fsr = arr.iter().find(|p| p["name"] == "fs-read").unwrap();
     assert_eq!(fsr["port"], "Tool");

@@ -53,6 +53,31 @@ describe("store.applyWs", () => {
     expect(spans[0].status).toBe("ok");
   });
 
+  it("event of a non-text_delta kind is appended to currentTrace.events without changing assistantText", () => {
+    const s = useStore.getState();
+    s.applyWs({
+      type: "snapshot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial Run fixture; follow-up: add a typed run() test helper
+      run: { id: "R1", status: "running" } as any,
+      spans: [],
+      events: [],
+    } as WsMessage);
+    s.applyWs({
+      type: "event",
+      event: {
+        run_id: "R1",
+        span_id: "s1",
+        ts: "t1",
+        kind: "tool_started",
+        payload: { tool: "fs-read" },
+      },
+    } as WsMessage);
+    const trace = useStore.getState().currentTrace;
+    expect(trace?.events).toHaveLength(1);
+    expect(trace?.events[0].kind).toBe("tool_started");
+    expect(useStore.getState().assistantText).toBe("");
+  });
+
   it("event of kind text_delta concatenates assistant text", () => {
     const s = useStore.getState();
     s.applyWs({

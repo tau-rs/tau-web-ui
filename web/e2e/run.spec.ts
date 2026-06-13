@@ -210,10 +210,12 @@ test("tools tab: list + expand shows used_by", async ({ page }) => {
   await expect(page.getByText("critic")).toBeVisible();
 });
 
-test("plugins tab: gated, two-pane describe + protocol-decode", async ({ page }) => {
+test("plugins tab: two-pane describe + protocol-decode", async ({ page }) => {
   await page.goto("/projects/demo/tools");
   await page.getByRole("button", { name: /plugins/i }).click();
-  await expect(page.getByText(/mock data/i)).toBeVisible({ timeout: 5000 });
+  // real introspection is the default now — the mock banner / gated badge are gone
+  await expect(page.getByRole("button", { name: /^anthropic/i })).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/mock data/i)).toHaveCount(0);
   // select the LlmBackend plugin → its transcript has llm.generate
   await page.getByRole("button", { name: /^anthropic/i }).click();
   const frame = page.getByRole("button", { name: /llm\.generate/i });

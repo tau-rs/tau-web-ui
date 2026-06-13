@@ -10,26 +10,35 @@ export function RunControls() {
   if (!trace) return null;
   const { run } = trace;
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
-      <StatusBadge status={run.status} />
-      <span className="text-xs text-muted">turns: {run.total_turns ?? "—"}</span>
-      <span className="text-xs text-muted">
-        {formatTokens(run)}
-        {run.token_usage ? ` (${formatTokenSplit(run)})` : ""}
-      </span>
-      <span className="text-xs text-muted">{formatDuration(run)}</span>
-      {run.stop_reason && run.status === "completed" && (
-        <span className="text-xs text-muted">stop: {run.stop_reason}</span>
+    <>
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2">
+        <StatusBadge status={run.status} />
+        <span className="text-xs text-muted">turns: {run.total_turns ?? "—"}</span>
+        <span className="text-xs text-muted">
+          {formatTokens(run)}
+          {run.token_usage ? ` (${formatTokenSplit(run)})` : ""}
+        </span>
+        <span className="text-xs text-muted">{formatDuration(run)}</span>
+        {run.stop_reason && run.status === "completed" && (
+          <span className="text-xs text-muted">stop: {run.stop_reason}</span>
+        )}
+        {run.status === "running" && (
+          <button
+            onClick={() => cancel(pid)}
+            className="ml-auto rounded-md border border-border px-2.5 py-1 text-xs hover:bg-bg"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+      {run.error && (
+        <div className="border-b border-st-error/30 bg-st-error-soft px-3 py-2">
+          <p className="text-xs font-semibold text-st-error">Run failed · {run.error.kind}</p>
+          {run.error.detail && (
+            <p className="mt-0.5 break-words text-xs text-st-error">{run.error.detail}</p>
+          )}
+        </div>
       )}
-      {run.error && <span className="text-xs text-st-error">error: {run.error.kind}</span>}
-      {run.status === "running" && (
-        <button
-          onClick={() => cancel(pid)}
-          className="ml-auto rounded-md border border-border px-2.5 py-1 text-xs hover:bg-bg"
-        >
-          Cancel
-        </button>
-      )}
-    </div>
+    </>
   );
 }
