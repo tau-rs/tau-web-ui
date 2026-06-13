@@ -5,16 +5,7 @@ import { TraceView } from "./TraceView";
 import { ProjectProvider } from "../app/project-context";
 import { useStore } from "../store/store";
 
-// The default "Agents" tab mounts ReactFlow, which needs ResizeObserver — absent
-// in jsdom. Stub it so TraceView can render before we switch to the Logs tab.
-vi.stubGlobal(
-  "ResizeObserver",
-  class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  },
-);
+vi.mock("./AgentMapView", () => ({ AgentMap: () => null }));
 
 function seed() {
   useStore.setState({

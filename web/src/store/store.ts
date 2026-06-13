@@ -268,19 +268,22 @@ export const useStore = create<AppStore>((set, get) => {
           set({ currentTrace: { ...state.currentTrace, spans } });
           break;
         }
-        case "event":
+        case "event": {
           if (state.currentTrace) {
+            const events = [...state.currentTrace.events, m.event];
             set({
-              currentTrace: {
-                ...state.currentTrace,
-                events: [...state.currentTrace.events, m.event],
-              },
+              currentTrace: { ...state.currentTrace, events },
+              ...(m.event.kind === "text_delta"
+                ? { assistantText: state.assistantText + deltaText(m.event.payload) }
+                : {}),
             });
-          }
-          if (m.event.kind === "text_delta") {
-            set({ assistantText: get().assistantText + deltaText(m.event.payload) });
+          } else if (m.event.kind === "text_delta") {
+            // No active trace yet — preserve the original behavior of still
+            // accumulating assistant text.
+            set({ assistantText: state.assistantText + deltaText(m.event.payload) });
           }
           break;
+        }
         case "run_update":
           if (state.currentTrace) {
             set({ currentTrace: { ...state.currentTrace, run: m.run } });
