@@ -15,6 +15,7 @@ use crate::adapters::TraceDelta;
 use crate::checks::{self, CheckReport, CheckSource};
 use crate::config::{self, AgentDetail};
 use crate::graph::{self, WorkflowGraph, WorkflowGraphSource};
+use crate::ir::{self, CompiledIr, IrError, IrSource};
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
 use crate::plugins::{self, PluginDetail, PluginsSource};
 use crate::providers::{self, Provider};
@@ -44,6 +45,7 @@ pub struct Inner {
     ship_source: Box<dyn ShipSource>,
     check_source: Box<dyn CheckSource>,
     graph_source: Box<dyn WorkflowGraphSource>,
+    ir_source: Box<dyn IrSource>,
     /// Lazily-spawned serve client (respawned after child death).
     client: Mutex<Option<ServeClient>>,
     /// run_id -> live Run snapshot.
@@ -132,6 +134,11 @@ impl AppState {
         } else {
             Box::new(graph::CliGraph::new(project.clone()))
         };
+        let ir_source: Box<dyn IrSource> = if is_mock {
+            Box::new(ir::MockIr)
+        } else {
+            Box::new(ir::CliIr::new(bin.clone(), project.clone()))
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -147,6 +154,7 @@ impl AppState {
             ship_source,
             check_source,
             graph_source,
+            ir_source,
             client: Mutex::new(None),
             runs: RwLock::new(HashMap::new()),
             serve_ids: RwLock::new(HashMap::new()),
@@ -614,6 +622,11 @@ impl AppState {
             }
         }
         Ok(g)
+    }
+
+    /// The compiled project IR (β.2). Project-scoped: one IrModule per tau.toml.
+    pub fn compiled_ir(&self) -> Result<CompiledIr, IrError> {
+        self.0.ir_source.inspect()
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {
