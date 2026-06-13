@@ -1,0 +1,11 @@
+{
+  "skills": [
+    {
+      "name": "web-search",
+      "version": "1.2.0",
+      "description": "Search the web over HTTP.",
+      "source": "file:///tmp/web-search.git",
+      "install_path": "/home/u/.tau/packages/web-search/1.2.0"
+    }
+  ]
+}

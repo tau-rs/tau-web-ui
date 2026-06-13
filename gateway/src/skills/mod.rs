@@ -295,6 +295,117 @@ pub fn delete_local(project: &Path, name: &str) -> Result<bool> {
     Ok(true)
 }
 
+/// Map a `tau skill show` capability object → `Capability`. Mirrors
+/// `cap_from_value` over serde_json: keeps only array-of-string fields
+/// (scalar detail fields like `mode` are dropped — `fields` is `Vec<String>`).
+fn cap_from_json(v: &serde_json::Value) -> Option<Capability> {
+    let kind = v.get("kind")?.as_str()?.to_string();
+    let mut fields = BTreeMap::new();
+    if let Some(obj) = v.as_object() {
+        for (k, val) in obj {
+            if k == "kind" {
+                continue;
+            }
+            if let Some(arr) = val.as_array() {
+                let list: Vec<String> = arr
+                    .iter()
+                    .filter_map(|x| x.as_str().map(String::from))
+                    .collect();
+                fields.insert(k.clone(), list);
+            }
+        }
+    }
+    Some(Capability { kind, fields })
+}
+
+/// `tau skill show` requires entries are `{name, version_req}` — no `source`,
+/// so `PackageDep.source` is left empty (the UI renders no link when empty).
+fn deps_from_json(v: &serde_json::Value) -> Vec<PackageDep> {
+    v.as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|d| {
+                    Some(PackageDep {
+                        name: d.get("name")?.as_str()?.to_string(),
+                        source: String::new(),
+                        version: d
+                            .get("version_req")
+                            .and_then(|s| s.as_str())
+                            .map(String::from),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse `tau skill list --json` (`{ "skills": [...] }`) → installed summaries.
+/// Cheap list (decision A): caps/requires are left empty for installed rows.
+fn parse_skill_list_json(stdout: &str) -> Vec<SkillSummary> {
+    let v: serde_json::Value =
+        serde_json::from_str(stdout.trim()).unwrap_or(serde_json::Value::Null);
+    v.get("skills")
+        .and_then(|s| s.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|s| {
+                    Some(SkillSummary {
+                        name: s.get("name")?.as_str()?.to_string(),
+                        version: s.get("version").and_then(|x| x.as_str()).map(String::from),
+                        source: s
+                            .get("source")
+                            .and_then(|x| x.as_str())
+                            .unwrap_or("")
+                            .to_string(),
+                        editable: false,
+                        capability_kinds: vec![],
+                        requires_count: 0,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse `tau skill show <name> --json --body` → an installed `SkillDetail`.
+fn parse_skill_show_json(stdout: &str) -> Option<SkillDetail> {
+    let v: serde_json::Value = serde_json::from_str(stdout.trim()).ok()?;
+    let name = v.get("name")?.as_str()?.to_string();
+    let capabilities = v
+        .get("capabilities")
+        .and_then(|c| c.as_array())
+        .map(|arr| arr.iter().filter_map(cap_from_json).collect())
+        .unwrap_or_default();
+    Some(SkillDetail {
+        name,
+        description: v
+            .get("description")
+            .and_then(|x| x.as_str())
+            .map(String::from),
+        version: v.get("version").and_then(|x| x.as_str()).map(String::from),
+        source: v
+            .get("source")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        editable: false,
+        content: v
+            .get("body")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        capabilities,
+        requires_tools: v
+            .get("requires_tools")
+            .map(deps_from_json)
+            .unwrap_or_default(),
+        requires_skills: v
+            .get("requires_skills")
+            .map(deps_from_json)
+            .unwrap_or_default(),
+    })
+}
+
 /// Installed (non-editable) skills: a seam over real `tau` (kind="skill" packages
 /// + `tau install`). The mock seeds one; the CLI seam is not exercised in v1.
 pub trait InstalledSkills: Send + Sync {
@@ -402,6 +513,46 @@ pub fn read(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SKILL_LIST_JSON: &str = include_str!("../../tests/fixtures/tau-json/skill-list.json");
+    const SKILL_SHOW_JSON: &str = include_str!("../../tests/fixtures/tau-json/skill-show.json");
+
+    #[test]
+    fn parse_skill_list_maps_installed_rows() {
+        let rows = parse_skill_list_json(SKILL_LIST_JSON);
+        assert_eq!(rows.len(), 1);
+        let s = &rows[0];
+        assert_eq!(s.name, "web-search");
+        assert_eq!(s.version.as_deref(), Some("1.2.0"));
+        assert!(!s.editable);
+        // decision A — cheap list leaves these empty for installed rows
+        assert!(s.capability_kinds.is_empty());
+        assert_eq!(s.requires_count, 0);
+    }
+
+    #[test]
+    fn parse_skill_show_maps_detail_caps_and_requires() {
+        let d = parse_skill_show_json(SKILL_SHOW_JSON).expect("detail");
+        assert_eq!(d.name, "demo-skill");
+        assert!(!d.editable);
+        assert_eq!(d.content, "# Demo Skill\nHello.\n");
+        assert_eq!(d.capabilities.len(), 1);
+        assert_eq!(d.capabilities[0].kind, "fs.read");
+        assert_eq!(
+            d.capabilities[0].fields.get("paths").unwrap(),
+            &vec!["${SKILL_DIR}/**".to_string()]
+        );
+        assert_eq!(d.requires_tools.len(), 1);
+        assert_eq!(d.requires_tools[0].name, "fs-read");
+        assert_eq!(d.requires_tools[0].source, ""); // tau drops source
+        assert_eq!(d.requires_tools[0].version.as_deref(), Some("^0.1"));
+    }
+
+    #[test]
+    fn skill_parsers_tolerate_garbage() {
+        assert!(parse_skill_list_json("not json").is_empty());
+        assert!(parse_skill_show_json("not json").is_none());
+    }
 
     fn demo() -> std::path::PathBuf {
         let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
