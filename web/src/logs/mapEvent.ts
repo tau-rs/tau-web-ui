@@ -21,7 +21,12 @@ function toolErrored(payload: unknown): boolean {
   return false;
 }
 
-/** Map a gateway Event to a presentation LogEntry. `index` disambiguates same-ts events. */
+/**
+ * Map a gateway Event to a presentation LogEntry.
+ * `index` MUST be the event's position within the full stream (e.g. the Array.map
+ * index over the complete events array) so the generated `id` is unique — callers
+ * must not restart `index` per batch.
+ */
 export function eventToLogEntry(e: Event, index: number): LogEntry {
   let level: LogLevel = "info";
   let label = e.kind;
@@ -47,7 +52,7 @@ export function eventToLogEntry(e: Event, index: number): LogEntry {
       break;
     case "fatal_error":
       level = "error";
-      label = `fatal: ${str(e.payload, "variant") ?? str(e.payload, "tool_error_variant") ?? "error"}`;
+      label = `fatal: ${str(e.payload, "variant") ?? str(e.payload, "tool_error_variant") ?? "unknown"}`;
       break;
     default:
       // unknown:* and any future kind

@@ -43,6 +43,16 @@ describe("eventToLogEntry", () => {
     expect(e.kind).toBe("unknown:SomeFutureKind");
   });
 
+  it("labels tool_completed with a ✔/✖ prefix and the tool name", () => {
+    const ok = eventToLogEntry(ev("tool_completed", { tool: "fs-read", result: { ok: true } }), 0);
+    expect(ok.label).toBe("✔ fs-read");
+    const bad = eventToLogEntry(
+      ev("tool_completed", { tool: "fs-read", result: { ok: false } }),
+      1,
+    );
+    expect(bad.label).toBe("✖ fs-read");
+  });
+
   it("produces unique ids for same-ts events via index", () => {
     const a = eventToLogEntry(ev("run_completed", {}), 0);
     const b = eventToLogEntry(ev("run_completed", {}), 1);
