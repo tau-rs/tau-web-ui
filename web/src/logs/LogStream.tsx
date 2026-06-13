@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { ALL_LEVELS, DEFAULT_FILTERS } from "./types";
 import type { LogEntry, LogFilterState, LogLevel, LogStreamProps } from "./types";
 
+// There is no dedicated "warn" status token in the design system; warn reuses the
+// cancelled (amber) token, which reads as a warning. See web/src/index.css.
 const LEVEL_CLASS: Record<LogLevel, string> = {
   debug: "text-muted",
   info: "text-fg",
@@ -22,6 +24,15 @@ function matches(e: LogEntry, f: LogFilterState): boolean {
 export function LogStream({ entries, filters, onFiltersChange, onEntryClick }: LogStreamProps) {
   // Uncontrolled fallback when the host doesn't own filter state.
   const [internal, setInternal] = useState<LogFilterState>(DEFAULT_FILTERS);
+
+  // Controlled-mode footgun: a host that passes `filters` but no `onFiltersChange`
+  // would render an inert filter UI. Warn in dev so it surfaces early.
+  if (import.meta.env.DEV && filters !== undefined && !onFiltersChange) {
+    console.warn(
+      "LogStream: `filters` provided without `onFiltersChange`; filter UI will be inert.",
+    );
+  }
+
   const f = filters ?? internal;
   const setF = (next: LogFilterState) =>
     onFiltersChange ? onFiltersChange(next) : setInternal(next);
@@ -40,6 +51,7 @@ export function LogStream({ entries, filters, onFiltersChange, onEntryClick }: L
         {ALL_LEVELS.map((lvl) => (
           <button
             key={lvl}
+            aria-pressed={f.levels.includes(lvl)}
             onClick={() => toggleLevel(lvl)}
             className={`rounded px-2 py-0.5 text-xs font-medium ${
               f.levels.includes(lvl)
@@ -59,13 +71,23 @@ export function LogStream({ entries, filters, onFiltersChange, onEntryClick }: L
       </div>
       <div className="min-h-0 flex-1 overflow-auto font-mono text-xs">
         {shown.length === 0 ? (
-          <p className="p-4 text-muted">No log entries.</p>
+          <p className="p-4 text-muted">
+            {entries.length === 0 ? "No log entries." : "No entries match the current filters."}
+          </p>
         ) : (
           <ul>
             {shown.map((e) => (
               <li
                 key={e.id}
+                role={onEntryClick ? "button" : undefined}
+                tabIndex={onEntryClick ? 0 : undefined}
                 onClick={() => onEntryClick?.(e)}
+                onKeyDown={(ev) => {
+                  if (onEntryClick && (ev.key === "Enter" || ev.key === " ")) {
+                    ev.preventDefault();
+                    onEntryClick(e);
+                  }
+                }}
                 className="flex cursor-pointer gap-3 border-b border-border px-3 py-1.5 hover:bg-bg"
               >
                 <span className="shrink-0 text-muted">{e.ts}</span>

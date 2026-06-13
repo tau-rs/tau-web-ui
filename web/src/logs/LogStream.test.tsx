@@ -48,4 +48,19 @@ describe("LogStream", () => {
     render(<LogStream entries={[]} />);
     expect(screen.getByText(/no log entries/i)).toBeInTheDocument();
   });
+
+  it("calls onFiltersChange in controlled mode instead of managing its own state", () => {
+    const onFiltersChange = vi.fn();
+    render(
+      <LogStream
+        entries={entries}
+        filters={{ levels: ["info", "warn", "error"], kinds: [], query: "" }}
+        onFiltersChange={onFiltersChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /error/i }));
+    expect(onFiltersChange).toHaveBeenCalledWith(
+      expect.objectContaining({ levels: ["info", "warn"] }),
+    );
+  });
 });
