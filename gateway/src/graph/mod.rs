@@ -123,7 +123,7 @@ impl WorkflowGraphSource for MockGraph {
                     ),
                     node("render", "tool.call", None, Some("fs-write"), None),
                 ],
-                edges: vec![],
+                edges: vec![edge("collect", "render")],
             },
             other => WorkflowGraph {
                 workflow: other.into(),
@@ -177,12 +177,15 @@ mod tests {
     }
 
     #[test]
-    fn mock_build_report_has_no_edges() {
+    fn mock_build_report_has_sequence_edge() {
         let g = MockGraph.graph("build-report").unwrap();
         assert_eq!(g.nodes.len(), 2);
         assert_eq!(g.nodes[0].kind, "agent.run"); // collect
         assert_eq!(g.nodes[1].kind, "tool.call"); // render
-        assert!(g.edges.is_empty());
+                                                  // execution order: collect runs, then render
+        assert_eq!(g.edges.len(), 1);
+        assert_eq!(g.edges[0].source, "collect");
+        assert_eq!(g.edges[0].target, "render");
     }
 
     #[test]
