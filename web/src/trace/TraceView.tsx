@@ -6,9 +6,10 @@ import { TraceTimeline } from "./TraceTimeline";
 import { AssistantStream } from "./AssistantStream";
 import { SpanInspector } from "./SpanInspector";
 import { RunControls } from "./RunControls";
+import { RunLogs } from "./RunLogs";
 import { Tabs } from "./Tabs";
 
-type TraceTab = "graph" | "timeline";
+type TraceTab = "graph" | "timeline" | "logs";
 
 export function TraceView() {
   const trace = useStore((s) => s.currentTrace);
@@ -41,6 +42,7 @@ export function TraceView() {
             tabs={[
               { id: "graph", label: "Agents" },
               { id: "timeline", label: "Timeline" },
+              { id: "logs", label: "Logs" },
             ]}
             value={tab}
             onChange={setTab}
@@ -55,8 +57,10 @@ export function TraceView() {
         <div className="min-w-0 flex-[2] border-r border-border">
           {tab === "graph" ? (
             <AgentMap spans={trace.spans} run={trace.run} />
-          ) : (
+          ) : tab === "timeline" ? (
             <TraceTimeline spans={trace.spans} />
+          ) : (
+            <RunLogs events={trace.events} live={trace.run.status === "running"} />
           )}
         </div>
         <div className="min-w-[280px] flex-1 overflow-auto">
