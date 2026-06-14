@@ -11,6 +11,7 @@ pub mod plugins;
 pub mod projects;
 pub mod providers;
 pub mod serve_client;
+pub mod sessions;
 pub mod ship;
 pub mod skills;
 pub mod state;
