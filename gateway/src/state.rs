@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::adapters::log::LogAdapter;
 use crate::adapters::serve::ServeAdapter;
 use crate::adapters::TraceDelta;
+use crate::caps::{self, AgentCapabilities, CapsSource};
 use crate::checks::{self, CheckReport, CheckSource};
 use crate::config::{self, AgentDetail};
 use crate::graph::{self, WorkflowGraph, WorkflowGraphSource};
@@ -48,6 +49,7 @@ pub struct Inner {
     plugins_source: Box<dyn PluginsSource>,
     ship_source: Box<dyn ShipSource>,
     check_source: Box<dyn CheckSource>,
+    caps_source: Box<dyn CapsSource>,
     graph_source: Box<dyn WorkflowGraphSource>,
     ir_source: Box<dyn IrSource>,
     sessions_source: Box<dyn SessionsSource>,
@@ -167,6 +169,11 @@ impl AppState {
         } else {
             Box::new(sessions::CliSessions::new(bin.clone(), project.clone()))
         };
+        let caps_source: Box<dyn CapsSource> = if is_mock {
+            Box::new(caps::MockCaps)
+        } else {
+            Box::new(caps::CliCaps::new(bin.clone(), project.clone()))
+        };
         AppState(Arc::new(Inner {
             bin,
             project,
@@ -181,6 +188,7 @@ impl AppState {
             plugins_source,
             ship_source,
             check_source,
+            caps_source,
             graph_source,
             ir_source,
             sessions_source,
@@ -646,6 +654,10 @@ impl AppState {
 
     pub fn checks(&self) -> CheckReport {
         self.0.check_source.report()
+    }
+
+    pub fn agent_capabilities(&self) -> anyhow::Result<Vec<AgentCapabilities>> {
+        self.0.caps_source.agent_capabilities()
     }
 
     pub fn list_sessions(&self) -> Result<Vec<SessionSummary>, SessionError> {

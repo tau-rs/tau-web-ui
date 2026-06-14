@@ -3,6 +3,7 @@ import type { ProjectConfig } from "../types/ProjectConfig";
 import { getConfig, putConfig, importAgent } from "../api/config";
 import { useProjectId } from "../app/project-context";
 import { surfaceError } from "../notify/notify";
+import { CapabilitiesCard } from "./CapabilitiesCard";
 
 export function ConfigPage() {
   const pid = useProjectId();
@@ -144,6 +145,8 @@ export function ConfigPage() {
           </tbody>
         </table>
       </div>
+
+      <CapabilitiesCard />
 
       <div className={card}>
         <div className="mb-1 flex items-center gap-2">
