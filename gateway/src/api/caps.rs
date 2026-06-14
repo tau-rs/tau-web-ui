@@ -31,7 +31,7 @@ mod tests {
             store,
         );
         let caps = state.agent_capabilities().unwrap();
-        assert_eq!(caps.len(), 4);
+        assert_eq!(caps.len(), 5);
         assert_eq!(caps[0].agent_id, "researcher");
         assert!(caps.iter().any(|a| a.effective.is_none())); // archivist: package not installed
     }

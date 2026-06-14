@@ -136,6 +136,13 @@ impl CapsSource for MockCaps {
                 llm_backend: "anthropic".into(),
                 effective: None,
             },
+            AgentCapabilities {
+                agent_id: "spawner".into(),
+                display_name: "Spawner".into(),
+                llm_backend: "anthropic".into(),
+                // Unscoped grant: tau populates no allow/deny/max_bytes for `agent.spawn`.
+                effective: Some(vec![cap("agent.spawn")]),
+            },
         ])
     }
 }
@@ -217,10 +224,14 @@ mod tests {
         let a = MockCaps.agent_capabilities().unwrap();
         let b = MockCaps.agent_capabilities().unwrap();
         assert_eq!(a, b);
-        assert_eq!(a.len(), 4);
+        assert_eq!(a.len(), 5);
         assert!(!a[0].effective.as_ref().unwrap().is_empty()); // populated
         assert_eq!(a[2].effective, Some(vec![])); // empty
         assert_eq!(a[3].effective, None); // package not installed
+                                          // unscoped grant: a row with no allow/deny/max_bytes
+        let spawn = &a[4].effective.as_ref().unwrap()[0];
+        assert_eq!(spawn.kind, "agent.spawn");
+        assert!(spawn.allow_paths.is_none() && spawn.max_bytes.is_none());
     }
 
     #[test]
