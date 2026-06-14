@@ -255,10 +255,10 @@ test("workflows: graph editor renders + edit mode is gated", async ({ page }) =>
   // React Flow rendered the workflow nodes (assert the canvas node class — "gather"
   // text appears in both the canvas and the inspector, so don't match on it).
   await expect(page.locator(".react-flow__node").first()).toBeVisible({ timeout: 5000 });
-  // enter edit mode → local banner + the gated Build button
+  // enter edit mode → local banner + the active interim Build button
   await page.getByRole("button", { name: /^edit$/i }).click();
   await expect(page.getByText(/changes are local/i)).toBeVisible();
-  await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^build$/i })).toBeEnabled();
 });
 
 test("agents: provider combobox shows the recommended provider", async ({ page }) => {
@@ -290,8 +290,8 @@ test("workflows: graph shows provider pill on an agent node + a minimap", async 
   await expect(page.getByText(/⚡ anthropic/).first()).toBeVisible();
   // Level-2 chrome: the minimap renders
   await expect(page.locator(".react-flow__minimap")).toBeVisible();
-  // Save → IR remains gated
-  await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+  // the interim Build button is active (wired to the ship build endpoint)
+  await expect(page.getByRole("button", { name: /^build$/i })).toBeEnabled();
 });
 
 test("providers: set a Local credential via the inline chain editor", async ({ page }) => {
@@ -344,8 +344,8 @@ test("workflows: edit mode adds a step via the inline + and palette", async ({ p
   await page.getByRole("button", { name: "agent.run" }).click();
   // a node was added
   await expect(page.locator(".react-flow__node")).toHaveCount(before + 1);
-  // Save → IR stays gated
-  await expect(page.getByRole("button", { name: /build from ir/i })).toBeDisabled();
+  // the interim Build button is active (wired to the ship build endpoint)
+  await expect(page.getByRole("button", { name: /^build$/i })).toBeEnabled();
 });
 
 test("providers: add TokenBroker + WorkloadIdentity — addable, resolved by tau at runtime", async ({

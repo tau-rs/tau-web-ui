@@ -1,0 +1,22 @@
+{
+  "schema": "ir-inspect/v1",
+  "hash_kind": "lowered",
+  "canonical_ir_hash": "mock00000000000000000000000000000000000000000000000000000000000",
+  "module": {
+    "ir_format": "v1.0.0",
+    "tau_version": "0.4.1-mock",
+    "target": "darwin-native-strict",
+    "workflow": {
+      "agents": {
+        "researcher": { "id": "researcher", "llm_backend": "anthropic" },
+        "summariser": { "id": "summariser", "llm_backend": "anthropic" }
+      },
+      "tools": {
+        "web-search": { "id": "web-search", "capability_requirements": { "net": ["outbound"] } }
+      },
+      "steps": {},
+      "edges": [{ "from": "researcher", "to": "web-search", "kind": "subflow" }],
+      "capability_table": { "web-search": ["net.outbound"] }
+    }
+  }
+}

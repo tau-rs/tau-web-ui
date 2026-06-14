@@ -6,6 +6,7 @@ pub mod config;
 pub mod credentials;
 pub mod graph;
 pub mod introspect;
+pub mod ir;
 pub mod packages;
 pub mod plugins;
 pub mod projects;

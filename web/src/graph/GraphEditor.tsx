@@ -13,8 +13,10 @@ import type { WorkflowGraph } from "../types/WorkflowGraph";
 import { getWorkflows } from "../api/client";
 import { getWorkflowGraph } from "../api/graph";
 import { getProviders } from "../api/providers";
-import { workflowToFlow, type StepNodeData } from "./layout";
+import { workflowToFlow, irToFlow, type StepNodeData } from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
+import { getCompiledIr } from "../api/ir";
+import type { CompiledIr } from "../types/CompiledIr";
 import {
   duplicateNode,
   toggleDisabled,
@@ -26,6 +28,7 @@ import type { GraphActions } from "./GraphActions";
 import { StepPalette } from "./StepPalette";
 import { listAgents } from "../api/agents";
 import { useProjectId } from "../app/project-context";
+import { listTargets, build } from "../api/ship";
 import { surfaceError } from "../notify/notify";
 
 export function GraphEditor() {
@@ -36,6 +39,25 @@ export function GraphEditor() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [edit, setEdit] = useState(false);
   const [selId, setSelId] = useState<string | null>(null);
+  const [building, setBuilding] = useState(false);
+  const [lastHash, setLastHash] = useState<string | null>(null);
+  const [view, setView] = useState<"source" | "compiled">("source");
+  const [ir, setIr] = useState<CompiledIr | null>(null);
+
+  async function onBuild() {
+    setBuilding(true);
+    try {
+      const ts = await listTargets(pid);
+      const target = ts.find((t) => t.status === "available")?.triple;
+      if (!target) return;
+      const b = await build(pid, target);
+      setLastHash(b.sha256);
+    } catch (e) {
+      surfaceError("Build failed", e);
+    } finally {
+      setBuilding(false);
+    }
+  }
 
   const [recommended, setRecommended] = useState<string>("");
   useEffect(() => {
@@ -81,6 +103,23 @@ export function GraphEditor() {
       .catch((e) => surfaceError("Failed to load workflow graph", e));
   }, [selected, pid]);
 
+  // fetch the compiled IR when entering the compiled view (or on project switch)
+  useEffect(() => {
+    if (view !== "compiled") return;
+    getCompiledIr(pid)
+      .then(setIr)
+      .catch((e) => surfaceError("Failed to load compiled IR", e));
+  }, [view, pid]);
+
+  // recompute the IR layout + workflow-agent highlight from the loaded IR + source nodes
+  const irFlow = useMemo(() => {
+    if (!ir) return { nodes: [] as Node<StepNodeData>[], edges: [] as Edge[] };
+    const wfAgents = new Set(nodes.map((n) => n.data.agent).filter(Boolean) as string[]);
+    return irToFlow(ir, wfAgents);
+  }, [ir, nodes]);
+  const irNodes = irFlow.nodes;
+  const irEdges = irFlow.edges;
+
   const onNodesChange = useCallback(
     (c: NodeChange[]) => setNodes((ns) => applyNodeChanges(c, ns) as Node<StepNodeData>[]),
     [],
@@ -94,7 +133,8 @@ export function GraphEditor() {
     [],
   );
 
-  const current = nodes.find((n) => n.id === selId) ?? null;
+  const activeNodes = view === "compiled" ? irNodes : nodes;
+  const current = activeNodes.find((n) => n.id === selId) ?? null;
 
   function updateCurrent(patch: Partial<StepNodeData>) {
     if (!current) return;
@@ -173,39 +213,79 @@ export function GraphEditor() {
             </option>
           ))}
         </select>
-        <button
-          onClick={() => setEdit((v) => !v)}
-          className={`rounded-md px-3 py-1 text-xs font-semibold ${
-            edit ? "bg-accent text-accent-fg" : "border border-border text-muted hover:text-fg"
-          }`}
+        <div
+          role="group"
+          aria-label="graph view"
+          className="ml-2 flex overflow-hidden rounded-md border border-border text-xs"
         >
-          {edit ? "Done" : "Edit"}
-        </button>
+          <button
+            type="button"
+            aria-pressed={view === "source"}
+            onClick={() => {
+              setView("source");
+              setSelId(null);
+            }}
+            className={`px-2 py-1 ${view === "source" ? "bg-accent text-accent-fg" : "text-muted"}`}
+          >
+            Source
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === "compiled"}
+            onClick={() => {
+              setView("compiled");
+              setSelId(null);
+            }}
+            className={`px-2 py-1 ${view === "compiled" ? "bg-accent text-accent-fg" : "text-muted"}`}
+          >
+            Compiled IR
+          </button>
+        </div>
+        {view === "compiled" && ir && (
+          <span className="font-mono text-[10px] text-muted">
+            {ir.target} · {ir.hash_kind} {ir.canonical_ir_hash.slice(0, 8)}
+          </span>
+        )}
+        {view === "source" && (
+          <button
+            onClick={() => setEdit((v) => !v)}
+            className={`rounded-md px-3 py-1 text-xs font-semibold ${
+              edit ? "bg-accent text-accent-fg" : "border border-border text-muted hover:text-fg"
+            }`}
+          >
+            {edit ? "Done" : "Edit"}
+          </button>
+        )}
         <button
-          disabled
-          title="waits on tau β.2"
-          className="ml-auto cursor-not-allowed rounded-md border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 opacity-80"
+          onClick={onBuild}
+          disabled={building}
+          className="ml-auto rounded-md border border-border px-3 py-1 text-xs font-semibold text-fg hover:bg-accent/10 disabled:opacity-60"
         >
-          🔒 Build from IR
+          {building ? "Building…" : "Build"}
         </button>
+        {lastHash && (
+          <span className="font-mono text-[10px] text-st-ok" title="reproducibility hash">
+            ✓ {lastHash.slice(0, 8)}
+          </span>
+        )}
       </div>
 
       {edit && (
         <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
-          Edit mode — changes are local; Save → IR waits on tau β.2.
+          Edit mode — changes are local (graph→TOML save is a separate track).
         </div>
       )}
 
       <div className="grid grid-cols-[1fr_190px] gap-3">
         <div ref={wrapRef} className="relative">
           <GraphCanvas
-            nodes={nodes}
-            edges={edges}
-            editable={edit}
+            nodes={view === "compiled" ? irNodes : nodes}
+            edges={view === "compiled" ? irEdges : edges}
+            editable={view === "source" && edit}
             actions={actions}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
+            onNodesChange={view === "source" ? onNodesChange : () => {}}
+            onEdgesChange={view === "source" ? onEdgesChange : () => {}}
+            onConnect={view === "source" ? onConnect : () => {}}
             onSelect={(id) => {
               setSelId(id);
               if (id === null) setPalette(null);
@@ -278,6 +358,19 @@ export function GraphEditor() {
                     {current.data.tools.map((t) => (
                       <span key={t} className="rounded border border-border px-1 text-[10px]">
                         {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {current.data.caps && current.data.caps.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1 text-muted">
+                    caps
+                    {current.data.caps.map((c) => (
+                      <span
+                        key={c}
+                        className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent"
+                      >
+                        {c}
                       </span>
                     ))}
                   </div>

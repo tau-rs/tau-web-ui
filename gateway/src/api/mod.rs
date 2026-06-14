@@ -7,6 +7,7 @@ pub mod config;
 pub mod credentials;
 pub mod graph;
 pub mod guard;
+pub mod ir;
 pub mod meta;
 pub mod packages;
 pub mod plugins;
@@ -41,6 +42,7 @@ pub fn router(reg: ProjectRegistry) -> Router {
         .route("/workflows", get(workflows::list))
         .route("/workflows/run", post(workflows::run))
         .route("/workflows/{name}/graph", get(graph::graph))
+        .route("/ir", get(ir::compiled))
         .route("/packages", get(packages::list))
         .route("/packages/install", post(packages::install))
         .route("/packages/resolve", post(packages::resolve))

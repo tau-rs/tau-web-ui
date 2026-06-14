@@ -16,6 +16,7 @@ use crate::checks::{self, CheckReport, CheckSource};
 use crate::config::{self, AgentDetail};
 use crate::graph::{self, WorkflowGraph, WorkflowGraphSource};
 use crate::introspect::PluginIntrospector;
+use crate::ir::{self, CompiledIr, IrError, IrSource};
 use crate::packages::{name_from_url, CliOps, MockOps, Package, PackageOps, VerifyResult};
 use crate::plugins::{self, PluginCatalog, PluginsSource};
 use crate::providers::{self, Provider};
@@ -48,6 +49,7 @@ pub struct Inner {
     ship_source: Box<dyn ShipSource>,
     check_source: Box<dyn CheckSource>,
     graph_source: Box<dyn WorkflowGraphSource>,
+    ir_source: Box<dyn IrSource>,
     sessions_source: Box<dyn SessionsSource>,
     /// Shared describe sweep for tools + plugins (None on the mock path).
     introspector: Option<Arc<PluginIntrospector>>,
@@ -155,6 +157,11 @@ impl AppState {
         } else {
             Box::new(graph::CliGraph::new(project.clone()))
         };
+        let ir_source: Box<dyn IrSource> = if is_mock {
+            Box::new(ir::MockIr)
+        } else {
+            Box::new(ir::CliIr::new(bin.clone(), project.clone()))
+        };
         let sessions_source: Box<dyn SessionsSource> = if is_mock {
             Box::new(sessions::MockSessions::new())
         } else {
@@ -175,6 +182,7 @@ impl AppState {
             ship_source,
             check_source,
             graph_source,
+            ir_source,
             sessions_source,
             introspector,
             client: Mutex::new(None),
@@ -680,6 +688,11 @@ impl AppState {
             }
         }
         Ok(g)
+    }
+
+    /// The compiled project IR (β.2). Project-scoped: one IrModule per tau.toml.
+    pub fn compiled_ir(&self) -> Result<CompiledIr, IrError> {
+        self.0.ir_source.inspect()
     }
 
     pub fn list_agents(&self) -> Result<Vec<AgentDetail>> {

@@ -71,24 +71,60 @@ beforeEach(() => {
             },
           ],
         });
+      if (url.includes("/targets"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => [
+            {
+              triple: "darwin-native-strict",
+              platform: "darwin",
+              adapter_family: "native",
+              tier: "tier1",
+              status: "available",
+              required_shapes: [],
+            },
+          ],
+        });
+      if (url.includes("/build"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            path: "dist/demo.tau",
+            sha256: "abc123def456",
+            size_bytes: 1024,
+            built_at: null,
+          }),
+        });
+      if (url.endsWith("/ir"))
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            hash_kind: "lowered",
+            canonical_ir_hash: "deadbeefcafef00d",
+            target: "darwin-native-strict",
+            tau_version: "0.4.1-mock",
+            agents: [{ id: "researcher", llm_backend: "anthropic", tools: ["web-search"] }],
+            tools: [{ id: "web-search", capabilities: ["net.outbound"] }],
+            edges: [{ from: "researcher", to: "web-search", kind: "subflow" }],
+          }),
+        });
       return Promise.resolve({ ok: true, json: async () => ({}) });
     }),
   );
 });
 
 describe("GraphEditor", () => {
-  it("loads the graph, shows a disabled gated Build button + the first step inspector", async () => {
+  it("builds via the ship endpoint and shows the reproducibility hash", async () => {
+    const user = userEvent.setup();
     render(
       <ProjectProvider pid="demo">
         <GraphEditor />
       </ProjectProvider>,
     );
-    await waitFor(() =>
-      expect(screen.getByRole("combobox", { name: /workflow/i })).toBeInTheDocument(),
-    );
-    expect(screen.getByRole("button", { name: /build from ir/i })).toBeDisabled();
-    // default-selected first node → inspector shows "gather" (canvas is mocked, so this is unique)
-    await waitFor(() => expect(screen.getByText("gather")).toBeInTheDocument());
+    const buildBtn = await screen.findByRole("button", { name: /^build$/i });
+    expect(buildBtn).not.toBeDisabled();
+    await user.click(buildBtn);
+    await waitFor(() => expect(screen.getByText(/abc123de/)).toBeInTheDocument());
   });
 
   it("toggles edit mode (local banner)", async () => {
@@ -115,5 +151,18 @@ describe("GraphEditor", () => {
     expect(screen.getByText(/⚡ anthropic/)).toBeInTheDocument();
     expect(screen.getByText(/✓ recommended/)).toBeInTheDocument();
     expect(screen.getByText("web-search")).toBeInTheDocument();
+  });
+
+  it("toggles to the Compiled IR view and shows target + hash", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectProvider pid="demo">
+        <GraphEditor />
+      </ProjectProvider>,
+    );
+    const tab = await screen.findByRole("button", { name: /compiled ir/i });
+    await user.click(tab);
+    await waitFor(() => expect(screen.getByText(/darwin-native-strict/)).toBeInTheDocument());
+    expect(screen.getByText(/deadbeef/)).toBeInTheDocument();
   });
 });
