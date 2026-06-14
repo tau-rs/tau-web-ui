@@ -23,9 +23,18 @@ function denies(c: CapabilityRow): string[] {
 function Chips({ cap }: { cap: CapabilityRow }) {
   const a = allows(cap);
   const d = denies(cap);
+  // Some kinds (agent.spawn, skill.spawn, the virtual plan/task_list tools) carry no
+  // allow/deny lists or byte cap. Render them as an explicit, unscoped grant rather
+  // than a bare label so the row doesn't read as unfinished.
+  const granted = a.length === 0 && d.length === 0 && cap.max_bytes == null;
   return (
     <span className="mr-2 inline-flex flex-wrap items-center gap-1">
       <span className="text-muted">{cap.kind}</span>
+      {granted && (
+        <span className="rounded-full border border-accent px-1.5 text-[10px] text-accent">
+          granted
+        </span>
+      )}
       {a.map((v) => (
         <span
           key={`a-${v}`}

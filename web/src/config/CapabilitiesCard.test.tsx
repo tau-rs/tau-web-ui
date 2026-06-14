@@ -37,6 +37,12 @@ const rows: AgentCapabilities[] = [
       },
     ],
   },
+  {
+    agent_id: "spawner",
+    display_name: "Spawner",
+    llm_backend: "anthropic",
+    effective: [{ kind: "agent.spawn", deny_paths: [], deny_hosts: [], deny_commands: [] }],
+  },
   { agent_id: "greeter", display_name: "Greeter", llm_backend: "anthropic", effective: [] },
   { agent_id: "orphan", display_name: "Orphan", llm_backend: "anthropic", effective: null },
 ];
@@ -50,6 +56,14 @@ describe("CapabilitiesCard", () => {
     expect(screen.getByText(/≤\s*1 MB/)).toBeInTheDocument();
     expect(screen.getByText(/fully sandboxed/i)).toBeInTheDocument();
     expect(screen.getByText(/package not installed/i)).toBeInTheDocument();
+  });
+
+  it("renders a granted indicator for an unscoped capability kind", async () => {
+    mockGet.mockResolvedValue(rows);
+    render(<CapabilitiesCard />);
+    // The kind label and an explicit "granted" tag, not a bare label.
+    expect(await screen.findByText("agent.spawn")).toBeInTheDocument();
+    expect(screen.getByText(/^granted$/i)).toBeInTheDocument();
   });
 
   it("surfaces an inline error and a toast on fetch failure", async () => {
