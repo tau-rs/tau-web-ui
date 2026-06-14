@@ -162,7 +162,9 @@ pub struct MockIr;
 
 impl IrSource for MockIr {
     fn inspect(&self) -> Result<CompiledIr, IrError> {
-        parse_envelope(include_str!("../../tests/fixtures/tau-json/ir-inspect.json"))
+        parse_envelope(include_str!(
+            "../../tests/fixtures/tau-json/ir-inspect.json"
+        ))
     }
 }
 
