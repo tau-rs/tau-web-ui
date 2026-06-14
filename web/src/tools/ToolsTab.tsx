@@ -3,6 +3,7 @@ import type { ToolCatalog } from "../types/ToolCatalog";
 import type { ToolDetail } from "../types/ToolDetail";
 import { listTools } from "../api/tools";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 const MAX_CHIPS = 6;
 
@@ -14,7 +15,7 @@ export function ToolsTab() {
   useEffect(() => {
     listTools(pid)
       .then(setCat)
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load tools", e));
   }, [pid]);
 
   function toggle(name: string) {

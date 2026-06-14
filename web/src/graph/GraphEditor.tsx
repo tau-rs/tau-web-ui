@@ -29,6 +29,7 @@ import { StepPalette } from "./StepPalette";
 import { listAgents } from "../api/agents";
 import { useProjectId } from "../app/project-context";
 import { listTargets, build } from "../api/ship";
+import { surfaceError } from "../notify/notify";
 
 export function GraphEditor() {
   const pid = useProjectId();
@@ -51,8 +52,8 @@ export function GraphEditor() {
       if (!target) return;
       const b = await build(pid, target);
       setLastHash(b.sha256);
-    } catch {
-      /* surface nothing on the mock */
+    } catch (e) {
+      surfaceError("Build failed", e);
     } finally {
       setBuilding(false);
     }
@@ -62,7 +63,7 @@ export function GraphEditor() {
   useEffect(() => {
     getProviders(pid)
       .then((ps) => setRecommended(ps.find((p) => p.recommended)?.name ?? ""))
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load providers", e));
   }, [pid]);
 
   const [agents, setAgents] = useState<string[]>([]);
@@ -77,7 +78,7 @@ export function GraphEditor() {
   useEffect(() => {
     listAgents(pid)
       .then((as) => setAgents(as.map((a) => a.id)))
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load agents", e));
   }, [pid]);
 
   useEffect(() => {
@@ -86,7 +87,7 @@ export function GraphEditor() {
         setWorkflows(ws);
         setSelected((cur) => cur || ws[0] || "");
       })
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load workflows", e));
   }, [pid]);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export function GraphEditor() {
         setSelId(flow.nodes[0]?.id ?? null);
         setEdit(false);
       })
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load workflow graph", e));
   }, [selected, pid]);
 
   // fetch the compiled IR when entering the compiled view (or on project switch)
@@ -107,7 +108,7 @@ export function GraphEditor() {
     if (view !== "compiled") return;
     getCompiledIr(pid)
       .then(setIr)
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load compiled IR", e));
   }, [view, pid]);
 
   // recompute the IR layout + workflow-agent highlight from the loaded IR + source nodes

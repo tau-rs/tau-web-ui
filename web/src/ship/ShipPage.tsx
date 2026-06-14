@@ -4,6 +4,7 @@ import type { Bundle } from "../types/Bundle";
 import type { VerifyOutcome } from "../types/VerifyOutcome";
 import { listTargets, listBundles, build, verifyBundle } from "../api/ship";
 import { useProjectId } from "../app/project-context";
+import { surfaceError } from "../notify/notify";
 
 function humanSize(bytes: number | bigint): string {
   // ts-rs exports the Rust `u64` `size_bytes` as `bigint`; coerce to number.
@@ -35,10 +36,10 @@ export function ShipPage() {
         setTargets(t);
         setTarget((cur) => cur || t.find((x) => x.status === "available")?.triple || "");
       })
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load ship targets", e));
     listBundles(pid)
       .then(setBundles)
-      .catch(() => {});
+      .catch((e) => surfaceError("Failed to load bundles", e));
   }, [pid]);
 
   async function onBuild() {
@@ -48,8 +49,8 @@ export function ShipPage() {
       const b = await build(pid, target);
       setLastBuild(b);
       setBundles((prev) => [b, ...prev]);
-    } catch {
-      // mock surface — ignore
+    } catch (e) {
+      surfaceError("Build failed", e);
     } finally {
       setBuilding(false);
     }
@@ -60,8 +61,8 @@ export function ShipPage() {
     try {
       const v = await verifyBundle(pid, path);
       setVerifyResult((p) => ({ ...p, [path]: v }));
-    } catch {
-      /* surface nothing on the mock */
+    } catch (e) {
+      surfaceError("Bundle verify failed", e);
     } finally {
       setVerifying(null);
     }
