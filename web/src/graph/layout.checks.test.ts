@@ -41,7 +41,7 @@ const baseNodes = (): Node<StepNodeData>[] => [
 ];
 
 describe("projectChecks", () => {
-  it("adds a check node for the deliverable, a goal badge on its producer, and a rewind edge", () => {
+  it("adds a check node (no fixed coords), a goal badge, and a bottom-handle rewind edge", () => {
     const { nodes, edges } = projectChecks(
       baseNodes(),
       [],
@@ -52,15 +52,17 @@ describe("projectChecks", () => {
       },
       RUN_RETRY_MET,
     );
-    const checkNode = nodes.find((n) => n.id === "check-report");
-    expect(checkNode?.type).toBe("check");
-    expect(checkNode?.data.runStatus).toBe("met");
-    expect(checkNode?.data.attemptCount).toBe(2);
+    const checkNode = nodes.find((n) => n.id === "check-report")!;
+    expect(checkNode.type).toBe("check");
+    expect(checkNode.data.runStatus).toBe("met");
+    expect(checkNode.data.attemptCount).toBe(2);
     const writer = nodes.find((n) => n.id === "writer")!;
     expect(writer.data.goalBadges?.[0].id).toBe("has_sources");
-    const rewind = edges.find((e) => e.type === "rewind");
-    expect(rewind?.source).toBe("check-report");
-    expect(rewind?.target).toBe("writer");
+    const rewind = edges.find((e) => e.type === "rewind")!;
+    expect(rewind.source).toBe("check-report");
+    expect(rewind.target).toBe("writer");
+    expect(rewind.sourceHandle).toBe("rw");
+    expect(rewind.targetHandle).toBe("rw");
   });
 
   it("does not mutate the caller's input nodes", () => {

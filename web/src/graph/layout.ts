@@ -159,15 +159,13 @@ export function projectChecks(
       goalsByProducer.set(producer, list);
       continue;
     }
-    // deliverable → node + rewind edge
-    const producerNode = nodes.find((n) => n.id === producer);
-    const x = (producerNode?.position.x ?? 0) + X_GAP;
-    const y = producerNode?.position.y ?? 0;
+    // deliverable → node + forward edge + rewind (feedback) edge.
+    // Positions are assigned later by ELK; we only declare the graph here.
     const checkId = `check-${c.id}`;
     outNodes.push({
       id: checkId,
       type: "check",
-      position: { x, y },
+      position: { x: 0, y: 0 },
       connectable: false,
       data: {
         label: c.id,
@@ -194,6 +192,8 @@ export function projectChecks(
       source: checkId,
       target: c.retry.gate,
       type: "rewind",
+      sourceHandle: "rw",
+      targetHandle: "rw",
       data: { attempts: run?.attempts.length ?? c.retry.max_attempts },
     });
   }
