@@ -13,7 +13,13 @@ import type { WorkflowGraph } from "../types/WorkflowGraph";
 import { getWorkflows } from "../api/client";
 import { getWorkflowGraph } from "../api/graph";
 import { getProviders } from "../api/providers";
-import { workflowToFlow, irToFlow, type StepNodeData } from "./layout";
+import {
+  workflowToFlow,
+  irToFlow,
+  projectChecks,
+  applyChecksSelection,
+  type StepNodeData,
+} from "./layout";
 import { GraphCanvas } from "./GraphCanvas";
 import { getCompiledIr } from "../api/ir";
 import type { CompiledIr } from "../types/CompiledIr";
@@ -30,6 +36,8 @@ import { listAgents } from "../api/agents";
 import { useProjectId } from "../app/project-context";
 import { listTargets, build } from "../api/ship";
 import { surfaceError } from "../notify/notify";
+import { getWorkflowChecks, getRunChecks, type WorkflowChecks } from "../api/postconditions";
+import type { RunCheckResult } from "../types/Postcondition";
 
 export function GraphEditor() {
   const pid = useProjectId();
@@ -43,6 +51,8 @@ export function GraphEditor() {
   const [lastHash, setLastHash] = useState<string | null>(null);
   const [view, setView] = useState<"source" | "compiled">("source");
   const [ir, setIr] = useState<CompiledIr | null>(null);
+  const [wfChecks, setWfChecks] = useState<WorkflowChecks | null>(null);
+  const [runResults, setRunResults] = useState<RunCheckResult[]>([]);
 
   async function onBuild() {
     setBuilding(true);
@@ -111,6 +121,17 @@ export function GraphEditor() {
       .catch((e) => surfaceError("Failed to load compiled IR", e));
   }, [view, pid]);
 
+  // load checks (mock) for the compiled view; runtime overlay from a sample run
+  useEffect(() => {
+    if (view !== "compiled" || !selected) return;
+    getWorkflowChecks(pid, selected)
+      .then(setWfChecks)
+      .catch(() => setWfChecks(null));
+    getRunChecks(pid, "run-retry")
+      .then((r) => setRunResults(r.results))
+      .catch(() => setRunResults([]));
+  }, [view, selected, pid]);
+
   // recompute the IR layout + workflow-agent highlight from the loaded IR + source nodes
   const irFlow = useMemo(() => {
     if (!ir) return { nodes: [] as Node<StepNodeData>[], edges: [] as Edge[] };
@@ -119,6 +140,18 @@ export function GraphEditor() {
   }, [ir, nodes]);
   const irNodes = irFlow.nodes;
   const irEdges = irFlow.edges;
+
+  const compiled = useMemo(
+    () =>
+      wfChecks
+        ? projectChecks(irNodes, irEdges, wfChecks, runResults)
+        : { nodes: irNodes, edges: irEdges },
+    [irNodes, irEdges, wfChecks, runResults],
+  );
+  const compiledEdges = useMemo(
+    () => applyChecksSelection(compiled.edges, selId),
+    [compiled.edges, selId],
+  );
 
   const onNodesChange = useCallback(
     (c: NodeChange[]) => setNodes((ns) => applyNodeChanges(c, ns) as Node<StepNodeData>[]),
@@ -133,7 +166,7 @@ export function GraphEditor() {
     [],
   );
 
-  const activeNodes = view === "compiled" ? irNodes : nodes;
+  const activeNodes = view === "compiled" ? compiled.nodes : nodes;
   const current = activeNodes.find((n) => n.id === selId) ?? null;
 
   function updateCurrent(patch: Partial<StepNodeData>) {
@@ -279,8 +312,8 @@ export function GraphEditor() {
       <div className="grid grid-cols-[1fr_190px] gap-3">
         <div ref={wrapRef} className="relative">
           <GraphCanvas
-            nodes={view === "compiled" ? irNodes : nodes}
-            edges={view === "compiled" ? irEdges : edges}
+            nodes={view === "compiled" ? compiled.nodes : nodes}
+            edges={view === "compiled" ? compiledEdges : edges}
             editable={view === "source" && edit}
             actions={actions}
             onNodesChange={view === "source" ? onNodesChange : () => {}}
@@ -298,6 +331,28 @@ export function GraphEditor() {
           )}
         </div>
         <div className="space-y-2 text-xs">
+          {view === "compiled" &&
+            wfChecks &&
+            Object.entries(wfChecks.build)
+              .filter(([, v]) => v.status === "error")
+              .map(([id, v]) => (
+                <div
+                  key={id}
+                  role="alert"
+                  className="mb-2 rounded-md border border-st-error/40 bg-st-error-soft px-2.5 py-2 text-[11px] text-st-error"
+                >
+                  <strong>{id}</strong>: {v.status === "error" ? v.message : ""}
+                  {v.status === "error" && v.producer && (
+                    <button
+                      type="button"
+                      className="mt-1 block text-accent underline"
+                      onClick={() => setSelId(v.producer!)}
+                    >
+                      → reveal on canvas
+                    </button>
+                  )}
+                </div>
+              ))}
           <div className="text-[9px] uppercase text-muted">step</div>
           {current ? (
             edit ? (

@@ -9,6 +9,7 @@ import { RunsSparkline } from "./RunsSparkline";
 import { AgentTable } from "./AgentTable";
 import { TopErrors } from "./TopErrors";
 import { Skeleton } from "../app/Skeleton";
+import { ChecksGlanceCard } from "./ChecksGlanceCard";
 
 const fmtTok = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
@@ -44,6 +45,7 @@ export function DashboardPage() {
   const runs = useStore((s) => s.runs);
   const runsLoaded = useStore((s) => s.runsLoaded);
   const runsError = useStore((s) => s.runsError);
+  const pid = useStore((s) => s.activeProjectId);
   const m = useMemo(() => computeMetrics(runs), [runs]);
 
   if (!runsLoaded) return <DashboardSkeleton />;
@@ -99,6 +101,7 @@ export function DashboardPage() {
           }
         />
       </div>
+      {pid && runs[0] && <ChecksGlanceCard pid={pid} runId={runs[0].id} />}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <Panel title="Status distribution">
           <StatusBars byStatus={m.byStatus} total={m.total} />

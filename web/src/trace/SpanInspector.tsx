@@ -1,5 +1,7 @@
 import type { Span } from "../types/Span";
 import { agentSummary } from "./agentMap";
+import { CheckVerdictPanel } from "./CheckVerdictPanel";
+import type { RunCheckResult } from "../types/Postcondition";
 
 function Section({ title, value }: { title: string; value: unknown }) {
   if (value === undefined || value === null) return null;
@@ -24,6 +26,17 @@ export function SpanInspector({
 }) {
   if (!span) return <p className="p-3 text-sm text-muted">Select a node to inspect.</p>;
   const attrs = (span.attributes ?? {}) as Record<string, unknown>;
+  if (attrs.check_kind && attrs.check) {
+    return (
+      <div className="overflow-auto p-3">
+        <h3 className="mb-1 mt-0 text-sm font-semibold">{span.name}</h3>
+        <div className="mb-2 text-xs text-muted">
+          {String(attrs.check_kind)} · {span.status}
+        </div>
+        <CheckVerdictPanel result={attrs.check as RunCheckResult} />
+      </div>
+    );
+  }
   const showDrill = workflow && span.kind === "agent";
   const summary = span.kind === "agent" && spans ? agentSummary(spans, span.id) : null;
   return (

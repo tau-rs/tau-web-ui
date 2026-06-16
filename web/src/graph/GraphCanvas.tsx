@@ -11,10 +11,12 @@ import {
 } from "@xyflow/react";
 import { StepNode } from "./StepNode";
 import { StepEdge } from "./StepEdge";
+import { CheckNode } from "./CheckNode";
+import { RewindEdge } from "./RewindEdge";
 import { GraphActionsContext, type GraphActions } from "./GraphActions";
 
-const nodeTypes = { step: StepNode };
-const edgeTypes = { step: StepEdge };
+const nodeTypes = { step: StepNode, check: CheckNode };
+const edgeTypes = { step: StepEdge, rewind: RewindEdge };
 
 export function GraphCanvas({
   nodes,
@@ -49,6 +51,11 @@ export function GraphCanvas({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          isValidConnection={(c) => {
+            const isCheck = (nid: string | null) =>
+              nid != null && nodes.find((n) => n.id === nid)?.type === "check";
+            return !isCheck(c.source) && !isCheck(c.target);
+          }}
           onNodeClick={(_, n) => onSelect(n.id)}
           onPaneClick={() => onSelect(null)}
         >
