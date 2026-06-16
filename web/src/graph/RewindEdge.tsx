@@ -1,4 +1,4 @@
-import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from "@xyflow/react";
 
 export function RewindEdge({
   id,
@@ -10,14 +10,15 @@ export function RewindEdge({
   targetPosition,
   data,
 }: EdgeProps) {
-  const [path, labelX, labelY] = getBezierPath({
+  const [path, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
     targetX,
     targetY,
     sourcePosition,
     targetPosition,
-    curvature: 0.6,
+    borderRadius: 10,
+    offset: 28,
   });
   const dimmed = (data as { dimmed?: boolean } | undefined)?.dimmed;
   const attempts = (data as { attempts?: number } | undefined)?.attempts ?? 1;
@@ -28,8 +29,8 @@ export function RewindEdge({
         path={path}
         style={{
           stroke: "#d29922",
-          strokeWidth: 1.6,
-          strokeDasharray: "6 4",
+          strokeWidth: 2,
+          strokeDasharray: "7 4",
           opacity: dimmed ? 0.25 : 1,
         }}
       />
