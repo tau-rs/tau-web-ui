@@ -382,7 +382,35 @@ export function GraphEditor() {
           <div className="absolute right-0 top-0 z-20 h-full w-[220px] overflow-auto border-l border-border bg-surface/95 p-3 text-xs shadow-[-8px_0_24px_#0007] backdrop-blur-sm">
             <div className="text-[9px] uppercase text-muted">step</div>
             {current ? (
-              edit ? (
+              current.data.checkKind ? (
+                <div className="space-y-1">
+                  <div className="font-semibold">{current.data.label}</div>
+                  <div className="text-muted">{current.data.checkKind}</div>
+                  {current.data.buildError ? (
+                    <div className="rounded border border-st-error/40 bg-st-error-soft px-1.5 py-1 text-[10px] text-st-error">
+                      {current.data.buildError}
+                    </div>
+                  ) : current.data.runStatus ? (
+                    <div className="flex flex-wrap items-center gap-1 text-muted">
+                      verdict
+                      <span
+                        className={`rounded-full px-1.5 text-[10px] font-semibold ${
+                          current.data.runStatus === "met"
+                            ? "bg-st-ok-soft text-st-ok"
+                            : "bg-st-error-soft text-st-error"
+                        }`}
+                      >
+                        {current.data.runStatus}
+                      </span>
+                      {current.data.attemptCount && current.data.attemptCount > 1 ? (
+                        <span className="text-[10px]">· {current.data.attemptCount} attempts</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="text-muted">◇ validated</div>
+                  )}
+                </div>
+              ) : edit ? (
                 <div className="space-y-1.5">
                   <label className="block text-muted">
                     label
