@@ -20,6 +20,7 @@ import {
   applyChecksSelection,
   type StepNodeData,
 } from "./layout";
+import { elkLayout } from "./elkLayout";
 import { GraphCanvas } from "./GraphCanvas";
 import { getCompiledIr } from "../api/ir";
 import type { CompiledIr } from "../types/CompiledIr";
@@ -132,6 +133,15 @@ export function GraphEditor() {
       .catch(() => setRunResults([]));
   }, [view, selected, pid]);
 
+  // close the inspector drawer on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // recompute the IR layout + workflow-agent highlight from the loaded IR + source nodes
   const irFlow = useMemo(() => {
     if (!ir) return { nodes: [] as Node<StepNodeData>[], edges: [] as Edge[] };
@@ -141,16 +151,32 @@ export function GraphEditor() {
   const irNodes = irFlow.nodes;
   const irEdges = irFlow.edges;
 
-  const compiled = useMemo(
+  // Compiled view: declare the graph (IR + checks), then let ELK position it (async).
+  const declared = useMemo(
     () =>
       wfChecks
         ? projectChecks(irNodes, irEdges, wfChecks, runResults)
         : { nodes: irNodes, edges: irEdges },
     [irNodes, irEdges, wfChecks, runResults],
   );
+  const [laidOutNodes, setLaidOutNodes] = useState<Node<StepNodeData>[]>([]);
+  useEffect(() => {
+    if (view !== "compiled" || declared.nodes.length === 0) return;
+    let alive = true;
+    elkLayout(declared.nodes, declared.edges)
+      .then((ns) => {
+        if (alive) setLaidOutNodes(ns as Node<StepNodeData>[]);
+      })
+      .catch(() => {
+        if (alive) setLaidOutNodes(declared.nodes);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [view, declared]);
   const compiledEdges = useMemo(
-    () => applyChecksSelection(compiled.edges, selId),
-    [compiled.edges, selId],
+    () => applyChecksSelection(declared.edges, selId),
+    [declared.edges, selId],
   );
 
   const onNodesChange = useCallback(
@@ -166,7 +192,7 @@ export function GraphEditor() {
     [],
   );
 
-  const activeNodes = view === "compiled" ? compiled.nodes : nodes;
+  const activeNodes = view === "compiled" ? laidOutNodes : nodes;
   const current = activeNodes.find((n) => n.id === selId) ?? null;
 
   function updateCurrent(patch: Partial<StepNodeData>) {
@@ -228,8 +254,8 @@ export function GraphEditor() {
   const inputCls = "mt-0.5 w-full rounded border border-border px-1.5 py-0.5 text-xs";
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="flex items-center gap-2">
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
         <h2 className="text-base font-semibold">Workflows / Graph</h2>
         <span className="rounded bg-amber-100 px-1.5 text-[10px] font-bold uppercase text-amber-800">
           gated
@@ -304,42 +330,39 @@ export function GraphEditor() {
       </div>
 
       {edit && (
-        <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+        <div className="mx-4 mb-2 rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
           Edit mode — changes are local (graph→TOML save is a separate track).
         </div>
       )}
 
-      <div className="grid grid-cols-[1fr_190px] gap-3">
-        <div ref={wrapRef} className="relative">
-          <GraphCanvas
-            nodes={view === "compiled" ? compiled.nodes : nodes}
-            edges={view === "compiled" ? compiledEdges : edges}
-            editable={view === "source" && edit}
-            actions={actions}
-            onNodesChange={view === "source" ? onNodesChange : () => {}}
-            onEdgesChange={view === "source" ? onEdgesChange : () => {}}
-            onConnect={view === "source" ? onConnect : () => {}}
-            onSelect={(id) => {
-              setSelId(id);
-              if (id === null) setPalette(null);
-            }}
-          />
-          {palette && (
-            <div className="absolute z-20" style={{ left: palette.x, top: palette.y }}>
-              <StepPalette agents={agents} onPick={onPickStep} onClose={() => setPalette(null)} />
-            </div>
-          )}
-        </div>
-        <div className="space-y-2 text-xs">
-          {view === "compiled" &&
-            wfChecks &&
-            Object.entries(wfChecks.build)
+      <div ref={wrapRef} className="relative min-h-0 flex-1">
+        <GraphCanvas
+          nodes={view === "compiled" ? laidOutNodes : nodes}
+          edges={view === "compiled" ? compiledEdges : edges}
+          editable={view === "source" && edit}
+          actions={actions}
+          onNodesChange={view === "source" ? onNodesChange : () => {}}
+          onEdgesChange={view === "source" ? onEdgesChange : () => {}}
+          onConnect={view === "source" ? onConnect : () => {}}
+          onSelect={(id) => {
+            setSelId(id);
+            if (id === null) setPalette(null);
+          }}
+        />
+        {palette && (
+          <div className="absolute z-20" style={{ left: palette.x, top: palette.y }}>
+            <StepPalette agents={agents} onPick={onPickStep} onClose={() => setPalette(null)} />
+          </div>
+        )}
+        {view === "compiled" && wfChecks && (
+          <div className="absolute left-3 top-3 z-10 max-w-[260px] space-y-2">
+            {Object.entries(wfChecks.build)
               .filter(([, v]) => v.status === "error")
               .map(([id, v]) => (
                 <div
                   key={id}
                   role="alert"
-                  className="mb-2 rounded-md border border-st-error/40 bg-st-error-soft px-2.5 py-2 text-[11px] text-st-error"
+                  className="rounded-md border border-st-error/40 bg-st-error-soft px-2.5 py-2 text-[11px] text-st-error"
                 >
                   <strong>{id}</strong>: {v.status === "error" ? v.message : ""}
                   {v.status === "error" && v.producer && (
@@ -353,92 +376,97 @@ export function GraphEditor() {
                   )}
                 </div>
               ))}
-          <div className="text-[9px] uppercase text-muted">step</div>
-          {current ? (
-            edit ? (
-              <div className="space-y-1.5">
-                <label className="block text-muted">
-                  label
-                  <input
-                    value={current.data.label}
-                    onChange={(e) => updateCurrent({ label: e.target.value })}
-                    className={inputCls}
-                  />
-                </label>
-                {current.data.kind === "agent.run" ? (
+          </div>
+        )}
+        {selId && (
+          <div className="absolute right-0 top-0 z-20 h-full w-[220px] overflow-auto border-l border-border bg-surface/95 p-3 text-xs shadow-[-8px_0_24px_#0007] backdrop-blur-sm">
+            <div className="text-[9px] uppercase text-muted">step</div>
+            {current ? (
+              edit ? (
+                <div className="space-y-1.5">
                   <label className="block text-muted">
-                    agent
+                    label
                     <input
-                      value={current.data.agent ?? ""}
-                      onChange={(e) => updateCurrent({ agent: e.target.value })}
+                      value={current.data.label}
+                      onChange={(e) => updateCurrent({ label: e.target.value })}
                       className={inputCls}
                     />
                   </label>
-                ) : (
-                  <label className="block text-muted">
-                    tool
-                    <input
-                      value={current.data.tool ?? ""}
-                      onChange={(e) => updateCurrent({ tool: e.target.value })}
-                      className={inputCls}
-                    />
-                  </label>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-0.5">
-                <div className="font-semibold">{current.data.label}</div>
-                <div className="text-muted">{current.data.kind}</div>
-                <div className="text-muted">
-                  {current.data.kind === "agent.run"
-                    ? `agent ${current.data.agent}`
-                    : `tool ${current.data.tool}`}
+                  {current.data.kind === "agent.run" ? (
+                    <label className="block text-muted">
+                      agent
+                      <input
+                        value={current.data.agent ?? ""}
+                        onChange={(e) => updateCurrent({ agent: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                  ) : (
+                    <label className="block text-muted">
+                      tool
+                      <input
+                        value={current.data.tool ?? ""}
+                        onChange={(e) => updateCurrent({ tool: e.target.value })}
+                        className={inputCls}
+                      />
+                    </label>
+                  )}
                 </div>
-                {current.data.kind === "agent.run" && current.data.provider && (
-                  <div className="flex flex-wrap items-center gap-1 text-muted">
-                    provider
-                    <span className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent">
-                      ⚡ {current.data.provider}
-                    </span>
-                    {current.data.provider === recommended && (
-                      <span className="rounded bg-st-ok-soft px-1 text-[10px] font-medium text-st-ok">
-                        ✓ recommended
-                      </span>
-                    )}
+              ) : (
+                <div className="space-y-0.5">
+                  <div className="font-semibold">{current.data.label}</div>
+                  <div className="text-muted">{current.data.kind}</div>
+                  <div className="text-muted">
+                    {current.data.kind === "agent.run"
+                      ? `agent ${current.data.agent}`
+                      : `tool ${current.data.tool}`}
                   </div>
-                )}
-                {current.data.tools && current.data.tools.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 text-muted">
-                    tools
-                    {current.data.tools.map((t) => (
-                      <span key={t} className="rounded border border-border px-1 text-[10px]">
-                        {t}
+                  {current.data.kind === "agent.run" && current.data.provider && (
+                    <div className="flex flex-wrap items-center gap-1 text-muted">
+                      provider
+                      <span className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent">
+                        ⚡ {current.data.provider}
                       </span>
-                    ))}
-                  </div>
-                )}
-                {current.data.caps && current.data.caps.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1 text-muted">
-                    caps
-                    {current.data.caps.map((c) => (
-                      <span
-                        key={c}
-                        className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent"
-                      >
-                        {c}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {current.data.input && (
-                  <div className="font-mono text-[10px] text-muted">{current.data.input}</div>
-                )}
-              </div>
-            )
-          ) : (
-            <div className="text-muted">Select a node.</div>
-          )}
-        </div>
+                      {current.data.provider === recommended && (
+                        <span className="rounded bg-st-ok-soft px-1 text-[10px] font-medium text-st-ok">
+                          ✓ recommended
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {current.data.tools && current.data.tools.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 text-muted">
+                      tools
+                      {current.data.tools.map((t) => (
+                        <span key={t} className="rounded border border-border px-1 text-[10px]">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {current.data.caps && current.data.caps.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 text-muted">
+                      caps
+                      {current.data.caps.map((c) => (
+                        <span
+                          key={c}
+                          className="rounded bg-accent/10 px-1 text-[10px] font-medium text-accent"
+                        >
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {current.data.input && (
+                    <div className="font-mono text-[10px] text-muted">{current.data.input}</div>
+                  )}
+                </div>
+              )
+            ) : (
+              <div className="text-muted">Select a node.</div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
