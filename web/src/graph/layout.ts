@@ -1,6 +1,8 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { WorkflowGraph } from "../types/WorkflowGraph";
 import type { CompiledIr } from "../types/CompiledIr";
+import type { WorkflowChecks } from "../api/postconditions";
+import type { RunCheckResult } from "../types/Postcondition";
 
 export interface StepNodeData extends Record<string, unknown> {
   label: string;
@@ -123,4 +125,91 @@ export function irToFlow(
     style: n.data.kind === "agent.run" && !workflowAgents.has(n.id) ? { opacity: 0.4 } : undefined,
   }));
   return flow;
+}
+
+/**
+ * Overlay checks onto an existing flow: deliverables become `check` nodes wired
+ * after their producer with a `rewind` edge back to the gate; goals become
+ * badges on the node that produces what they evaluate (spec: grammar C).
+ * `runResults` is empty when no run is selected (design-time view).
+ */
+export function projectChecks(
+  nodes: Node<StepNodeData>[],
+  edges: Edge[],
+  wf: WorkflowChecks,
+  runResults: RunCheckResult[],
+): { nodes: Node<StepNodeData>[]; edges: Edge[] } {
+  const runById = new Map(runResults.map((r) => [r.id, r]));
+  const outNodes = [...nodes];
+  const outEdges = [...edges];
+  const goalsByProducer = new Map<
+    string,
+    { id: string; status: "met" | "failed" | "validated" }[]
+  >();
+
+  for (const c of wf.checks) {
+    const build = wf.build[c.id];
+    const producer = wf.producerOf[c.id];
+    const run = runById.get(c.id);
+    if (c.verify.kind === "goal") {
+      const status = run ? (run.final === "met" ? "met" : "failed") : "validated";
+      const list = goalsByProducer.get(producer) ?? [];
+      list.push({ id: c.id, status });
+      goalsByProducer.set(producer, list);
+      continue;
+    }
+    // deliverable → node + rewind edge
+    const producerNode = nodes.find((n) => n.id === producer);
+    const x = (producerNode?.position.x ?? 0) + X_GAP;
+    const y = producerNode?.position.y ?? 0;
+    const checkId = `check-${c.id}`;
+    outNodes.push({
+      id: checkId,
+      type: "check",
+      position: { x, y },
+      connectable: false,
+      data: {
+        label: c.id,
+        kind: "check.deliverable",
+        agent: null,
+        tool: null,
+        input: null,
+        provider: null,
+        tools: [],
+        checkKind: "deliverable",
+        buildError: build?.status === "error" ? build.message : undefined,
+        runStatus: run ? run.final : null,
+        attemptCount: run?.attempts.length,
+      },
+    });
+    outEdges.push({
+      id: `${producer}->${checkId}`,
+      source: producer,
+      target: checkId,
+      type: "step",
+    });
+    outEdges.push({
+      id: `${checkId}->${c.retry.gate}`,
+      source: checkId,
+      target: c.retry.gate,
+      type: "rewind",
+      data: { attempts: run?.attempts.length ?? c.retry.max_attempts },
+    });
+  }
+
+  for (const n of outNodes) {
+    const badges = goalsByProducer.get(n.id);
+    if (badges) n.data = { ...n.data, goalBadges: badges };
+  }
+  return { nodes: outNodes, edges: outEdges };
+}
+
+/** Emphasis pass: when a check node is selected, dim every rewind edge that is
+ *  not its own (spec R2 pair-highlight, as a pure transform). */
+export function applyChecksSelection(edges: Edge[], selectedId: string | null): Edge[] {
+  return edges.map((e) => {
+    if (e.type !== "rewind") return e;
+    const dimmed = selectedId != null && e.source !== selectedId;
+    return { ...e, data: { ...(e.data ?? {}), dimmed } };
+  });
 }
