@@ -19,6 +19,7 @@ import {
 import { listProjects } from "../api/projects";
 import type { ProjectListItem } from "../types/ProjectListItem";
 import { errorMessage } from "../notify/notify";
+import { mockCheckSpans } from "../api/postconditions";
 
 interface TraceState {
   run: Run;
@@ -228,7 +229,11 @@ export const useStore = create<AppStore>((set, get) => {
       // Replay snapshot first (works even with no live engine — AC#5).
       const trace = await getTrace(pid, id);
       set({
-        currentTrace: { run: trace.run, spans: trace.spans, events: trace.events ?? [] },
+        currentTrace: {
+          run: trace.run,
+          spans: [...trace.spans, ...mockCheckSpans(id)],
+          events: trace.events ?? [],
+        },
         assistantText: assistantTextFromEvents(trace.events),
         selectedSpanId: null,
       });
