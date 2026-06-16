@@ -3,6 +3,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   type Node,
   type Edge,
   type Connection,
@@ -39,7 +40,7 @@ export function GraphCanvas({
 }) {
   return (
     <GraphActionsContext.Provider value={actions}>
-      <div className="relative h-[420px] w-full rounded-md border border-border">
+      <div className="relative h-full w-full rounded-md border border-border">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -51,6 +52,9 @@ export function GraphCanvas({
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          defaultEdgeOptions={{
+            markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+          }}
           isValidConnection={(c) => {
             const isCheck = (nid: string | null) =>
               nid != null && nodes.find((n) => n.id === nid)?.type === "check";
