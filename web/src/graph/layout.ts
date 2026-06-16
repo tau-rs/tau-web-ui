@@ -12,6 +12,12 @@ export interface StepNodeData extends Record<string, unknown> {
   tools: string[];
   caps?: string[]; // tool.call nodes (compiled IR view): capability requirements
   disabled?: boolean;
+  // --- postcondition checks (mock) ---
+  checkKind?: "goal" | "deliverable"; // set on CheckNode (type "check")
+  buildError?: string; // design-time: dashed-red border + message
+  runStatus?: "met" | "failed" | "aborted" | null; // runtime corner badge
+  attemptCount?: number; // runtime: ×N when > 1
+  goalBadges?: { id: string; status: "met" | "failed" | "validated" }[]; // on producer StepNodes
 }
 
 export const X_GAP = 220;
