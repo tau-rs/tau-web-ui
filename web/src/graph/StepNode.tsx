@@ -116,7 +116,13 @@ export function StepNode({ id, data, selected }: NodeProps<Node<StepNodeData>>) 
           </button>
         )}
         <Handle type="source" position={Position.Right} className={handle} />
-        <Handle type="target" position={Position.Bottom} id="rw" className={handle} />
+        <Handle
+          type="target"
+          position={Position.Bottom}
+          id="rw"
+          className={handle}
+          isConnectable={false}
+        />
       </div>
     </>
   );
