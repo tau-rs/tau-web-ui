@@ -82,6 +82,24 @@ export function StepNode({ id, data, selected }: NodeProps<Node<StepNodeData>>) 
               </span>
             )}
           </div>
+          {data.goalBadges && data.goalBadges.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {data.goalBadges.map((g) => (
+                <span
+                  key={g.id}
+                  className={`rounded-full px-1.5 text-[9px] font-semibold ${
+                    g.status === "met"
+                      ? "border border-st-ok bg-st-ok-soft text-st-ok"
+                      : g.status === "failed"
+                        ? "border border-st-error bg-st-error-soft text-st-error"
+                        : "border border-accent/50 bg-accent/10 text-accent"
+                  }`}
+                >
+                  ✓ goal {g.id}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         {actions.editable && (
           <button
