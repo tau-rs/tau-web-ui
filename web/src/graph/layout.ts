@@ -152,6 +152,7 @@ export function projectChecks(
     const producer = wf.producerOf[c.id];
     const run = runById.get(c.id);
     if (c.verify.kind === "goal") {
+      if (!producer) continue;
       const status = run ? (run.final === "met" ? "met" : "failed") : "validated";
       const list = goalsByProducer.get(producer) ?? [];
       list.push({ id: c.id, status });

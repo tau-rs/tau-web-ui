@@ -95,7 +95,7 @@ export function StepNode({ id, data, selected }: NodeProps<Node<StepNodeData>>) 
                         : "border border-accent/50 bg-accent/10 text-accent"
                   }`}
                 >
-                  ✓ goal {g.id}
+                  {g.status === "failed" ? "✕" : "✓"} goal {g.id}
                 </span>
               ))}
             </div>

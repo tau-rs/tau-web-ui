@@ -59,4 +59,15 @@ describe("StepNode goal badges", () => {
     renderNode({ goalBadges: [] });
     expect(screen.queryByText(/goal /i)).not.toBeInTheDocument();
   });
+
+  it("shows ✓ glyph for met/validated and ✕ glyph for failed", () => {
+    renderNode({
+      goalBadges: [
+        { id: "g_met", status: "met" },
+        { id: "g_failed", status: "failed" },
+      ],
+    });
+    expect(screen.getByText(/✓ goal g_met/)).toBeInTheDocument();
+    expect(screen.getByText(/✕ goal g_failed/)).toBeInTheDocument();
+  });
 });
