@@ -63,6 +63,18 @@ describe("projectChecks", () => {
     expect(rewind?.target).toBe("writer");
   });
 
+  it("does not mutate the caller's input nodes", () => {
+    const input = baseNodes();
+    projectChecks(
+      input,
+      [],
+      { checks: RESEARCH_CHECKS, build: RESEARCH_BUILD, producerOf: PRODUCER_OF },
+      [],
+    );
+    const writer = input.find((n) => n.id === "writer")!;
+    expect(writer.data.goalBadges).toBeUndefined();
+  });
+
   it("applyChecksSelection dims rewind edges not belonging to the selected check", () => {
     const edges: Edge[] = [
       {

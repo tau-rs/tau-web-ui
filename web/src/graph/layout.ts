@@ -197,11 +197,11 @@ export function projectChecks(
     });
   }
 
-  for (const n of outNodes) {
+  const patchedNodes = outNodes.map((n) => {
     const badges = goalsByProducer.get(n.id);
-    if (badges) n.data = { ...n.data, goalBadges: badges };
-  }
-  return { nodes: outNodes, edges: outEdges };
+    return badges ? { ...n, data: { ...n.data, goalBadges: badges } } : n;
+  });
+  return { nodes: patchedNodes, edges: outEdges };
 }
 
 /** Emphasis pass: when a check node is selected, dim every rewind edge that is
