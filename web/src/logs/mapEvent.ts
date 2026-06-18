@@ -28,8 +28,8 @@ function toolErrored(payload: unknown): boolean {
  * must not restart `index` per batch.
  */
 export function eventToLogEntry(e: Event, index: number): LogEntry {
-  let level: LogLevel = "info";
-  let label = e.kind;
+  let level: LogLevel;
+  let label: string;
 
   switch (e.kind) {
     case "text_delta":
