@@ -11,10 +11,32 @@ pub struct ScriptStep {
 
 /// Returns the event sequence for an agent. Unknown agents fall back to `greeter`.
 pub fn script_for(agent: &str, prompt: &str) -> Vec<ScriptStep> {
+    // A `long run` prompt yields a deliberately long, finely-stepped script so
+    // cancellation e2e has a stable window to click Cancel before the run ends.
+    if prompt.contains("long run") {
+        return long_run();
+    }
     match agent {
         "researcher" => researcher(prompt),
         _ => greeter(prompt),
     }
+}
+
+/// ~3s of cancellable runway built from many short steps. The runner checks for
+/// cancellation between steps, so small `delay_ms` keeps the run in `running`
+/// while still noticing a cancel within one step (~50ms) — no flaky race on slow
+/// CI runners where the old ~230ms greeter could finish before Cancel landed.
+fn long_run() -> Vec<ScriptStep> {
+    let mut steps = vec![step("TextDelta", json!({"text": "Starting long run"}), 40)];
+    for _ in 0..60 {
+        steps.push(step("TextDelta", json!({"text": "."}), 50));
+    }
+    steps.push(step(
+        "RunCompleted",
+        json!({"token_usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}),
+        10,
+    ));
+    steps
 }
 
 fn step(kind: &'static str, data: Value, delay_ms: u64) -> ScriptStep {
