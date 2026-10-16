@@ -70,6 +70,13 @@ export function CheckNode({ id, data, selected }: NodeProps<Node<StepNodeData>>)
           )}
         </div>
         <Handle type="source" position={Position.Right} className={handle} isConnectable={false} />
+        <Handle
+          type="source"
+          position={Position.Bottom}
+          id="rw"
+          className={handle}
+          isConnectable={false}
+        />
       </div>
     </>
   );
