@@ -3,6 +3,9 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  // Retry in CI only: the suite has timing-sensitive flows (e.g. cancel mid-run
+  // races the mock's run duration). Local runs stay at 0 to surface real flakes.
+  retries: process.env.CI ? 2 : 0,
   use: { baseURL: "http://127.0.0.1:5173", trace: "on", video: "on", screenshot: "on" },
   webServer: [
     {
